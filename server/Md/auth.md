@@ -280,9 +280,9 @@ FRONTEND_URL=http://localhost:5173
 
 | Action | Endpoint | Auth | Who Can |
 |--------|----------|------|---------|
-| Register | `/api/auth/register` | None | User, Seller |
-| Verify OTP | `/api/auth/verify-otp` | None | All |
-| Login | `/api/auth/login` | None | All |
+| Register | `/api/auth/register` | None | User, Seller | ✅
+| Verify OTP | `/api/auth/verify-otp` | None | All | ✅
+| Login | `/api/auth/login` | None | All | ✅
 | Google Login | `/api/auth/google` | None | All |
 | Refresh Token | `/api/auth/refresh` | None | All (with refresh token) |
 | Get Profile | `/api/auth/profile` | JWT | All |

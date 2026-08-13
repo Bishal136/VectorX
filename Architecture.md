@@ -67,46 +67,55 @@ flowchart LR
 ```
 vectorx-backend/
 ├── src/
+|   ├──constants
+|   |  ├──product.js ✅ 
 │   ├── config/
 │   │   ├── db.js    ✅   # MongoDB connection + index verification
 |   |   ├── passport.js ✅
-│   │   ├── cloudinary.js
+│   │   ├── cloudinary.js ✅
 │   │                  
 │   ├── models/
 │   │   ├── User.model.js   ✅
-│   │   ├── Seller.model.js        # extends/references User
-│   │   ├── Product.model.js
-│   │   ├── Order.model.js
-│   │   └── Category.model.js
+|   |   ├──Otp.model.js   ✅
+|   |   ├──Cart.model.js  ✅
+│   │   ├── Seller.model.js    ✅     # extends/references User
+│   │   ├── Product.model.js  ✅
+│   │   ├── Order.model.js ✅
+│   │   └── Category.model.js ✅
 │   ├── controllers/
 │   │   ├── auth.controller.js ✅
-│   │   ├── user.controller.js
+│   │   ├── user.controller.js ✅
 │   │   ├── product.controller.js
 │   │   ├── order.controller.js
-│   │   ├── seller.controller.js
+│   │   ├── seller.controller.js ✅
 │   │   └── admin.controller.js
 │   ├── routes/
 │   │   ├── auth.routes.js ✅
-│   │   ├── user.routes.js
+│   │   ├── user.routes.js ✅
 │   │   ├── product.routes.js
 │   │   ├── order.routes.js
-│   │   ├── seller.routes.js
+│   │   ├── seller.routes.js  ✅
 │   │   └── admin.routes.js
 │   ├── middlewares/
 │   │   ├── auth.middleware.js  ✅  # verifyToken
-│   │   ├── role.middleware.js     # isUser, isSeller, isAdmin
-│   │   ├── error.middleware.js    # centralized error handler
-│   │   └── validate.middleware.js # request body validation (Joi/Zod)
+│   │   ├── role.middleware.js   ✅  # isUser, isSeller, isAdmin
+│   │   ├── error.middleware.js   ✅ # centralized error handler
+│   │   └── validate.middleware.js  ✅ # request bodyvalidation (Joi/Zod)
+|   |   └──upload.middleware.js  ✅ 
 │   ├── services/
-│   │   ├── geo.service.js         # $geoNear query builder + fallback logic
+|   |   ├──product.service.js ✅
+│   │   ├── geo.service.js    ✅     # $geoNear query builder + fallback logic
 │   │   ├── payment.service.js     # Stripe/PayPal wrappers
 │   │   ├── email.service.js       # Nodemailer wrappers
 │   │   └── otp.service.js ✅
+|   |   └──refreshToken.service.js ✅
+|   |   └── seller.service.js ✅
 |   |           
 │   ├── utils/
 │   │   ├── apiResponse.js
-│   │   ├── asyncHandler.js
+│   │   ├── asyncHandler.js  ✅
 │   │   └── logger.js
+|   |   └── ApiError.js  ✅
 │   ├── app.js                     # Express app setup, middleware mounting
 │   └── server.js                  # entry point
 ├── tests/

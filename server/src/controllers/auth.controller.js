@@ -1,5 +1,8 @@
+// src/controllers/auth.controller.js
 const User = require('../models/User.model');
+const Seller = require('../models/Seller.model');
 const asyncHandler = require('../utils/asyncHandler');
+const ApiError = require('../utils/ApiError');
 const { generateAccessToken, generateRefreshToken, refreshAccessToken, removeRefreshToken, removeAllRefreshTokens } = require('../services/refreshToken.service');
 const { sendOTP, verifyOTP } = require('../services/otp.service');
 
@@ -40,19 +43,58 @@ const register = asyncHandler(async (req, res) => {
     role: role || 'user'
   });
 
+  // If role is seller, automatically create a seller profile
+  let sellerProfile = null;
+  if (user.role === 'seller') {
+    try {
+      sellerProfile = await Seller.create({
+        user: user._id,
+        shopName: `${name}'s Shop`,
+        shopAddress: {
+          line1: 'Please update your shop address',
+          city: 'Unknown',
+          pincode: '000000'
+        },
+        location: {
+          type: 'Point',
+          coordinates: [0, 0]
+        },
+        verificationStatus: 'pending',
+        isVerified: false
+      });
+    } catch (error) {
+      console.error('Failed to create seller profile:', error);
+      // Don't fail the registration, just log the error
+    }
+  }
+
   // Generate OTP
   await sendOTP(email);
 
+  const responseData = {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isVerified: user.isVerified
+  };
+
+  // Add seller info if applicable
+  if (sellerProfile) {
+    responseData.sellerProfile = {
+      id: sellerProfile._id,
+      shopName: sellerProfile.shopName,
+      verificationStatus: sellerProfile.verificationStatus,
+      needsCompletion: true
+    };
+  }
+
   res.status(201).json({
     success: true,
-    message: 'User registered successfully. Please verify your email with OTP.',
-    data: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      isVerified: user.isVerified
-    }
+    message: user.role === 'seller' 
+      ? 'Seller registered successfully. Please verify your email with OTP and complete your shop details after verification.'
+      : 'User registered successfully. Please verify your email with OTP.',
+    data: responseData
   });
 });
 
@@ -62,8 +104,8 @@ const register = asyncHandler(async (req, res) => {
 const verifyOTPController = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
 
-  // Verify OTP
-  const result = verifyOTP(email, otp);
+  // Verify OTP from database
+  const result = await verifyOTP(email, otp, 'verification');
   
   if (!result.valid) {
     return res.status(400).json({
@@ -84,9 +126,19 @@ const verifyOTPController = asyncHandler(async (req, res) => {
   user.isVerified = true;
   await user.save();
 
+  // Check if seller has profile (for seller users)
+  let sellerWarning = null;
+  if (user.role === 'seller') {
+    const sellerExists = await Seller.findOne({ user: user._id });
+    if (!sellerExists) {
+      sellerWarning = 'Your seller profile is missing. Please register as a seller to complete your shop setup.';
+    }
+  }
+
   res.json({
     success: true,
-    message: 'Email verified successfully. You can now login.'
+    message: 'Email verified successfully. You can now login.',
+    ...(sellerWarning && { warning: sellerWarning })
   });
 });
 
@@ -135,20 +187,60 @@ const login = asyncHandler(async (req, res) => {
   const accessToken = generateAccessToken(user._id);
   const refreshToken = await generateRefreshToken(user._id);
 
+  // Prepare user data
+  const userData = {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    isVerified: user.isVerified,
+    location: user.location
+  };
+
+  // If user is a seller, check seller profile
+  let sellerData = null;
+  let warning = null;
+
+  if (user.role === 'seller') {
+    const sellerProfile = await Seller.findOne({ user: user._id });
+    
+    if (!sellerProfile) {
+      warning = {
+        message: 'Your seller profile is missing. Please register as a seller to manage your shop.',
+        needsSellerRegistration: true
+      };
+    } else {
+      sellerData = {
+        id: sellerProfile._id,
+        shopName: sellerProfile.shopName,
+        verificationStatus: sellerProfile.verificationStatus,
+        isVerified: sellerProfile.isVerified
+      };
+
+      // Add warnings based on verification status
+      if (sellerProfile.verificationStatus === 'pending') {
+        warning = {
+          message: 'Your seller account is pending verification. You can browse products but cannot sell until verified.',
+          needsVerification: true
+        };
+      } else if (sellerProfile.verificationStatus === 'rejected') {
+        warning = {
+          message: `Your seller application was rejected: ${sellerProfile.rejectionReason || 'No reason provided'}`,
+          needsReapply: true
+        };
+      }
+    }
+  }
+
   res.json({
     success: true,
     data: {
       accessToken,
       refreshToken,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        isVerified: user.isVerified,
-        location: user.location
-      }
+      user: userData,
+      ...(sellerData && { seller: sellerData }),
+      ...(warning && { warning })
     }
   });
 });
@@ -159,8 +251,6 @@ const login = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/google
 // @access  Public
 const googleAuth = asyncHandler(async (req, res) => {
-  // This route will be handled by passport.authenticate('google')
-  // The controller is just a placeholder
   res.status(200).json({
     success: true,
     message: 'Google auth endpoint'
@@ -171,8 +261,6 @@ const googleAuth = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/google/callback
 // @access  Public
 const googleAuthCallback = asyncHandler(async (req, res) => {
-  // This is handled by passport.authenticate('google')
-  // The user is attached to req.user by passport
   const user = req.user;
   
   // Generate tokens
@@ -189,12 +277,29 @@ const googleAuthCallback = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/profile
 // @access  Private
 const getProfile = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user.id)
-    .select('-refreshTokens');
+  if (!req.user) {
+    throw new ApiError(401, 'Not authenticated');
+  }
+
+  const user = req.user.toObject ? req.user.toObject() : { ...req.user };
   
+  // Remove sensitive fields
+  delete user.password;
+  delete user.refreshTokens;
+
+  // If user is seller, fetch seller profile
+  let sellerProfile = null;
+  if (user.role === 'seller') {
+    sellerProfile = await Seller.findOne({ user: user._id })
+      .select('shopName shopAddress location verificationStatus isVerified rejectionReason');
+  }
+
   res.json({
     success: true,
-    data: user
+    data: {
+      ...user,
+      ...(sellerProfile && { seller: sellerProfile })
+    }
   });
 });
 
@@ -244,37 +349,79 @@ const logout = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Forgot password
+// ==================== Password Management ====================
+
+// @desc    Forgot password - send reset OTP
 // @route   POST /api/auth/forgot-password
 // @access  Public
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
-  
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(404).json({
+
+  if (!email) {
+    return res.status(400).json({
       success: false,
-      message: 'User not found'
+      message: 'Email is required'
     });
   }
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(200).json({
+      success: true,
+      message: 'If an account exists with this email, you will receive a password reset OTP'
+    });
+  }
+
+  if (user.isBlocked) {
+    return res.status(403).json({
+      success: false,
+      message: 'Your account has been blocked'
+    });
+  }
+
+  const result = await sendOTP(email, 'password_reset');
   
-  // Send OTP for password reset
-  await sendOTP(email);
-  
-  res.json({
+  if (!result.success) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send reset email. Please try again later.'
+    });
+  }
+
+  res.status(200).json({
     success: true,
-    message: 'OTP sent to your email for password reset'
+    message: 'Password reset OTP sent to your email. Valid for 10 minutes.'
   });
 });
 
-// @desc    Reset password
+// @desc    Reset password with OTP
 // @route   POST /api/auth/reset-password
 // @access  Public
 const resetPassword = asyncHandler(async (req, res) => {
-  const { email, otp, newPassword } = req.body;
-  
-  // Verify OTP
-  const result = verifyOTP(email, otp);
+  const { email, otp, newPassword, confirmPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email, OTP, and new password are required'
+    });
+  }
+
+  if (confirmPassword && newPassword !== confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Passwords do not match'
+    });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password must be at least 6 characters long'
+    });
+  }
+
+  const result = await verifyOTP(email, otp, 'password_reset');
   
   if (!result.valid) {
     return res.status(400).json({
@@ -282,8 +429,7 @@ const resetPassword = asyncHandler(async (req, res) => {
       message: result.message
     });
   }
-  
-  // Find user and update password
+
   const user = await User.findOne({ email });
   if (!user) {
     return res.status(404).json({
@@ -291,13 +437,66 @@ const resetPassword = asyncHandler(async (req, res) => {
       message: 'User not found'
     });
   }
-  
+
+  if (user.isBlocked) {
+    return res.status(403).json({
+      success: false,
+      message: 'Your account has been blocked'
+    });
+  }
+
   user.password = newPassword;
   await user.save();
-  
-  res.json({
+
+  await removeAllRefreshTokens(user._id);
+
+  res.status(200).json({
     success: true,
-    message: 'Password reset successfully'
+    message: 'Password reset successfully. Please login with your new password.'
+  });
+});
+
+// @desc    Resend OTP
+// @route   POST /api/auth/resend-otp
+// @access  Public
+const resendOTP = asyncHandler(async (req, res) => {
+  const { email, type = 'verification' } = req.body;
+
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email is required'
+    });
+  }
+
+  if (type === 'verification') {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    if (user.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already verified'
+      });
+    }
+  }
+
+  const result = await sendOTP(email, type);
+  
+  if (!result.success) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send OTP. Please try again later.'
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `OTP resent to your email. Valid for 10 minutes.`
   });
 });
 
@@ -309,7 +508,6 @@ const resetPassword = asyncHandler(async (req, res) => {
 const seedAdmin = asyncHandler(async (req, res) => {
   const { secret } = req.body;
   
-  // Check secret to prevent unauthorized admin creation
   if (secret !== process.env.ADMIN_SEED_SECRET) {
     return res.status(401).json({
       success: false,
@@ -317,7 +515,6 @@ const seedAdmin = asyncHandler(async (req, res) => {
     });
   }
   
-  // Check if admin already exists
   const existingAdmin = await User.findOne({ role: 'admin' });
   if (existingAdmin) {
     return res.status(400).json({
@@ -326,7 +523,6 @@ const seedAdmin = asyncHandler(async (req, res) => {
     });
   }
   
-  // Create admin
   const admin = await User.create({
     name: 'Admin',
     email: 'admin@vectorx.com',
@@ -363,27 +559,17 @@ const checkRole = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  // Manual auth
   register,
   verifyOTPController,
   login,
-  
-  // Google auth
   googleAuth,
   googleAuthCallback,
-  
-  // Token management
   refreshToken,
   logout,
-  
-  // Password management
   forgotPassword,
   resetPassword,
-  
-  // Profile
+  resendOTP,
   getProfile,
   checkRole,
-  
-  // Admin seed
   seedAdmin
 };

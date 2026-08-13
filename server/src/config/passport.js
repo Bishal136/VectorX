@@ -1,5 +1,6 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const bcrypt = require('bcryptjs');
 const User = require('../models/User.model');
 
 // Serialize user
@@ -26,7 +27,10 @@ passport.use(new GoogleStrategy({
   },
   async (req, accessToken, refreshToken, profile, done) => {
     try {
-      const email = profile.emails[0].value;
+      const email = profile.emails?.[0]?.value;
+      if (!email) {
+        return done(new Error('No email found in Google profile'), null);
+      }
       
       // Check if user exists
       let user = await User.findOne({ email });
@@ -42,12 +46,11 @@ passport.use(new GoogleStrategy({
       
       // Create new user
       const name = profile.displayName || profile.name?.givenName || 'User';
-      const [firstName, ...lastNameParts] = name.split(' ');
       
       user = await User.create({
         name: name,
         email: email,
-        password: await require('bcryptjs').hash(Math.random().toString(36), 10),
+        password: await bcrypt.hash(Math.random().toString(36), 10),
         googleId: profile.id,
         isVerified: true, // Google accounts are automatically verified
         role: 'user' // Default role
