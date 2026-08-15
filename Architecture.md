@@ -82,20 +82,24 @@ vectorx-backend/
 │   │   ├── Product.model.js  ✅
 │   │   ├── Order.model.js ✅
 │   │   └── Category.model.js ✅
+|   |   └──Setting.model.js  ✅
+|   |   └──Payment.model.js ✅
 │   ├── controllers/
 │   │   ├── auth.controller.js ✅
 │   │   ├── user.controller.js ✅
-│   │   ├── product.controller.js
+│   │   ├── product.controller.js  ✅
 │   │   ├── order.controller.js
 │   │   ├── seller.controller.js ✅
-│   │   └── admin.controller.js
+│   │   └── admin.controller.js  ✅
+|   |   └── payment.controller.js ✅
 │   ├── routes/
 │   │   ├── auth.routes.js ✅
 │   │   ├── user.routes.js ✅
-│   │   ├── product.routes.js
-│   │   ├── order.routes.js
+│   │   ├── product.routes.js  ✅
+│   │   ├── order.routes.js    ✅ 
 │   │   ├── seller.routes.js  ✅
-│   │   └── admin.routes.js
+│   │   └── admin.routes.js  ✅
+|   |   └── payment.routes.js ✅
 │   ├── middlewares/
 │   │   ├── auth.middleware.js  ✅  # verifyToken
 │   │   ├── role.middleware.js   ✅  # isUser, isSeller, isAdmin
@@ -105,7 +109,7 @@ vectorx-backend/
 │   ├── services/
 |   |   ├──product.service.js ✅
 │   │   ├── geo.service.js    ✅     # $geoNear query builder + fallback logic
-│   │   ├── payment.service.js     # Stripe/PayPal wrappers
+│   │   ├── payment.service.js  ✅    #  Walletmix payment Getway
 │   │   ├── email.service.js       # Nodemailer wrappers
 │   │   └── otp.service.js ✅
 |   |   └──refreshToken.service.js ✅
@@ -116,6 +120,8 @@ vectorx-backend/
 │   │   ├── asyncHandler.js  ✅
 │   │   └── logger.js
 |   |   └── ApiError.js  ✅
+|   ├── validations
+|   |   └──admin.validation.js ✅
 │   ├── app.js                     # Express app setup, middleware mounting
 │   └── server.js                  # entry point
 ├── tests/

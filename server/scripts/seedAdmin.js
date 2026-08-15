@@ -22,14 +22,14 @@ const seedAdmin = async () => {
     const admin = await User.create({
       name: 'System Administrator',
       email: 'admin@vectorx.com',
-      password: 'admin123',
+      password: 'Password123!',
       role: 'admin',
       isVerified: true
     });
 
     console.log('✓ Admin user created successfully:');
     console.log(`Email: admin@vectorx.com`);
-    console.log(`Password: admin123`);
+    console.log(`Password: Password123! `);
     console.log(`ID: ${admin._id}`);
     console.log(`Role: ${admin.role}`);
 

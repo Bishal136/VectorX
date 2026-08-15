@@ -345,56 +345,56 @@ productSchema.index({ isActive: 1, stock: 1, isInStock: 1 });
 
 // ==================== Middleware ====================
 
-// Pre-save middleware to generate slug
-productSchema.pre('save', function(next) {
-  if (this.isModified('name') || !this.slug) {
-    this.slug = this.name
+// Pre-validate middleware to generate a unique slug
+productSchema.pre('validate', async function() {
+  if (this.name && (this.isModified('name') || !this.slug)) {
+    const baseSlug = this.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
+
+    let slug = baseSlug;
+    let counter = 1;
+
+    while (await this.constructor.exists({ slug, _id: { $ne: this._id } })) {
+      counter += 1;
+      slug = `${baseSlug}-${counter}`;
+    }
+
+    this.slug = slug;
   }
-  
-  // Update isInStock based on stock
+
   this.isInStock = this.stock > 0;
-  
-  // If variants exist, update hasVariants flag
+
   if (this.variants && this.variants.length > 0) {
     this.hasVariants = true;
-    // Calculate total stock from variants
     let totalStock = 0;
     this.variants.forEach(variant => {
       variant.options.forEach(option => {
         totalStock += option.stock || 0;
       });
     });
-    // Don't override stock if it's manually set
     if (!this.isModified('stock')) {
       this.stock = totalStock;
     }
   }
-  
-  next();
 });
 
 // Pre-validate middleware to ensure coordinates are valid
-productSchema.pre('validate', function(next) {
+productSchema.pre('validate', function() {
   if (this.location && this.location.coordinates) {
     const [lng, lat] = this.location.coordinates;
     if (lng === 0 && lat === 0) {
-      // If coordinates are 0,0 (invalid), update to seller's location
-      // This will be handled by the service layer
       console.warn('Product coordinates are 0,0. Will be updated by service layer.');
     }
   }
-  next();
 });
 
 // Pre-save middleware to sync rating distribution
-productSchema.pre('save', function(next) {
+productSchema.pre('save', function() {
   if (this.isModified('reviews') || this.isNew) {
     this.updateRatingStats();
   }
-  next();
 });
 
 // ==================== Methods ====================
@@ -427,13 +427,14 @@ productSchema.methods.isAvailable = function() {
 
 // Get primary image
 productSchema.methods.getPrimaryImage = function() {
+  if (!this.images) return null;
   const primary = this.images.find(img => img.isPrimary);
   return primary || (this.images.length > 0 ? this.images[0] : null);
 };
 
 // Get all image URLs
 productSchema.methods.getImageUrls = function() {
-  return this.images.map(img => img.url);
+  return this.images?.map(img => img.url) || [];
 };
 
 // Check if product has enough stock for an order
@@ -640,21 +641,22 @@ productSchema.virtual('formattedComparePrice').get(function() {
 
 // Virtual for rating percentage (for display)
 productSchema.virtual('ratingPercentage').get(function() {
-  if (!this.rating.average) return 0;
+  if (!this.rating?.average) return 0;
   return (this.rating.average / 5) * 100;
 });
 
 // Virtual for review count breakdown
 productSchema.virtual('reviewBreakdown').get(function() {
-  const total = this.reviews.length || 0;
+  const total = this.reviews?.length || 0;
   if (total === 0) return null;
-  
+
+  const dist = this.rating?.distribution || {};
   return {
-    1: { count: this.rating.distribution[1] || 0, percentage: ((this.rating.distribution[1] || 0) / total) * 100 },
-    2: { count: this.rating.distribution[2] || 0, percentage: ((this.rating.distribution[2] || 0) / total) * 100 },
-    3: { count: this.rating.distribution[3] || 0, percentage: ((this.rating.distribution[3] || 0) / total) * 100 },
-    4: { count: this.rating.distribution[4] || 0, percentage: ((this.rating.distribution[4] || 0) / total) * 100 },
-    5: { count: this.rating.distribution[5] || 0, percentage: ((this.rating.distribution[5] || 0) / total) * 100 }
+    1: { count: dist[1] || 0, percentage: ((dist[1] || 0) / total) * 100 },
+    2: { count: dist[2] || 0, percentage: ((dist[2] || 0) / total) * 100 },
+    3: { count: dist[3] || 0, percentage: ((dist[3] || 0) / total) * 100 },
+    4: { count: dist[4] || 0, percentage: ((dist[4] || 0) / total) * 100 },
+    5: { count: dist[5] || 0, percentage: ((dist[5] || 0) / total) * 100 }
   };
 });
 

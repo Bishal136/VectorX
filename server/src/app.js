@@ -13,6 +13,11 @@ const passport = require("./config/passport")
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const sellerRoutes = require('./routes/seller.routes');
+const productRouter =require("./routes/product.routes");
+const adminRouter = require('./routes/admin.routes');
+const orderRoutes = require('./routes/order.routes');
+const paymentRoutes = require('./routes/payment.routes');
+
 
 
 // Import middleware
@@ -53,6 +58,10 @@ app.use(cors({
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sellers', sellerRoutes);
+app.use("/api/admin",adminRouter);
+app.use('/api/products',productRouter);
+app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

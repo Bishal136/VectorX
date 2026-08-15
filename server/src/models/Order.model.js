@@ -19,9 +19,8 @@ const PAYMENT_STATUS = {
 };
 
 const PAYMENT_METHODS = {
-  STRIPE: 'stripe',
-  PAYPAL: 'paypal',
-  COD: 'cod' // Cash on Delivery (future)
+  WALLEMIX: 'WALLEMIX',
+  COD: 'COD'
 };
 
 const orderItemSchema = new mongoose.Schema({
@@ -75,7 +74,7 @@ const shippingAddressSchema = new mongoose.Schema({
   },
   coordinates: {
     type: [Number],
-    
+
   },
   phone: String // Contact number for delivery
 }, {
@@ -89,72 +88,72 @@ const orderSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  
+
   // Seller receiving the order (one order per seller)
   sellerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Seller',
     required: true
   },
-  
+
   // Order items
   items: [orderItemSchema],
-  
+
   // Total amount for this order
   totalAmount: {
     type: Number,
     required: true,
     min: 0
   },
-  
+
   // Subtotal before tax/shipping
   subtotal: {
     type: Number,
     required: true,
     min: 0
   },
-  
+
   // Shipping charges
   shippingCharge: {
     type: Number,
     default: 0,
     min: 0
   },
-  
+
   // Tax amount (if applicable)
   tax: {
     type: Number,
     default: 0,
     min: 0
   },
-  
+
   // Discount applied (coupon)
   discount: {
     type: Number,
     default: 0,
     min: 0
   },
-  
+
   // Coupon code used (if any)
   couponCode: {
     type: String,
     uppercase: true,
     trim: true
   },
-  
+
   // Shipping address
   shippingAddress: {
     type: shippingAddressSchema,
     required: true
   },
-  
+
   // Order status
   status: {
     type: String,
     enum: Object.values(ORDER_STATUS),
     default: ORDER_STATUS.PENDING
   },
-  
+
   // Payment details
   paymentMethod: {
     type: String,
@@ -174,12 +173,12 @@ const orderSchema = new mongoose.Schema({
     type: String,
     sparse: true
   },
-  
+
   // For multi-seller checkout grouping
   checkoutSessionId: {
     type: String,
-     },
-  
+  },
+
   // Delivery tracking
   trackingNumber: {
     type: String,
@@ -191,18 +190,18 @@ const orderSchema = new mongoose.Schema({
   estimatedDeliveryDate: {
     type: Date
   },
-  
+
   // Review status (if user has reviewed)
   isReviewed: {
     type: Boolean,
     default: false
   },
-  
+
   // Cancellation reason (if cancelled)
   cancellationReason: {
     type: String
   },
-  
+
   // Refund details
   refundAmount: {
     type: Number,
@@ -216,13 +215,13 @@ const orderSchema = new mongoose.Schema({
   refundDate: {
     type: Date
   },
-  
+
   // Order notes (for delivery instructions)
   notes: {
     type: String,
     trim: true
   },
-  
+
   // Platform commission (calculated at checkout)
   commissionAmount: {
     type: Number,
@@ -235,7 +234,7 @@ const orderSchema = new mongoose.Schema({
     min: 0,
     max: 100
   },
-  
+
   // Metadata for additional info
   metadata: {
     type: Map,
@@ -249,7 +248,7 @@ const orderSchema = new mongoose.Schema({
 // Indexes for performance
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ sellerId: 1, status: 1 });
-orderSchema.index({ checkoutSessionId: 1 },{sparse:true});
+orderSchema.index({ checkoutSessionId: 1 }, { sparse: true });
 orderSchema.index({ status: 1, createdAt: 1 });
 orderSchema.index({ paymentStatus: 1 });
 orderSchema.index({ 'shippingAddress.coordinates': '2dsphere' });
@@ -258,27 +257,27 @@ orderSchema.index({ 'shippingAddress.coordinates': '2dsphere' });
 orderSchema.index({ sellerId: 1, status: 1, createdAt: -1 });
 
 // Method to check if order can be cancelled
-orderSchema.methods.canCancel = function() {
+orderSchema.methods.canCancel = function () {
   return [ORDER_STATUS.PENDING, ORDER_STATUS.PROCESSING].includes(this.status);
 };
 
 // Method to check if order can be updated (status)
-orderSchema.methods.canUpdateStatus = function() {
+orderSchema.methods.canUpdateStatus = function () {
   return [ORDER_STATUS.PENDING, ORDER_STATUS.PROCESSING, ORDER_STATUS.SHIPPED].includes(this.status);
 };
 
 // Method to check if order is completed
-orderSchema.methods.isCompleted = function() {
+orderSchema.methods.isCompleted = function () {
   return [ORDER_STATUS.DELIVERED, ORDER_STATUS.REFUNDED].includes(this.status);
 };
 
 // Method to check if order is active (not cancelled/refunded)
-orderSchema.methods.isActive = function() {
+orderSchema.methods.isActive = function () {
   return ![ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(this.status);
 };
 
 // Method to get order summary
-orderSchema.methods.getSummary = function() {
+orderSchema.methods.getSummary = function () {
   return {
     orderId: this._id,
     totalAmount: this.totalAmount,
@@ -291,10 +290,10 @@ orderSchema.methods.getSummary = function() {
 };
 
 // Static method to get sales stats for a seller
-orderSchema.statics.getSellerStats = async function(sellerId, days = 30) {
+orderSchema.statics.getSellerStats = async function (sellerId, days = 30) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  
+
   const stats = await this.aggregate([
     {
       $match: {
@@ -314,7 +313,7 @@ orderSchema.statics.getSellerStats = async function(sellerId, days = 30) {
       }
     }
   ]);
-  
+
   return stats.length > 0 ? stats[0] : {
     totalOrders: 0,
     totalRevenue: 0,
@@ -324,10 +323,10 @@ orderSchema.statics.getSellerStats = async function(sellerId, days = 30) {
 };
 
 // Static method to get platform-wide stats
-orderSchema.statics.getPlatformStats = async function(days = 30) {
+orderSchema.statics.getPlatformStats = async function (days = 30) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  
+
   const stats = await this.aggregate([
     {
       $match: {
@@ -355,7 +354,7 @@ orderSchema.statics.getPlatformStats = async function(days = 30) {
       }
     }
   ]);
-  
+
   // Get status breakdown
   const statusBreakdown = await this.aggregate([
     {
@@ -370,7 +369,7 @@ orderSchema.statics.getPlatformStats = async function(days = 30) {
       }
     }
   ]);
-  
+
   const result = stats.length > 0 ? stats[0] : {
     totalOrders: 0,
     totalRevenue: 0,
@@ -378,58 +377,58 @@ orderSchema.statics.getPlatformStats = async function(days = 30) {
     avgOrderValue: 0,
     uniqueCustomers: 0
   };
-  
+
   result.statusBreakdown = statusBreakdown.reduce((acc, item) => {
     acc[item._id] = item.count;
     return acc;
   }, {});
-  
+
   return result;
 };
 
 // Pre-save middleware to calculate totals if not provided
-orderSchema.pre('save', function(next) {
+orderSchema.pre('save', function () {
   // Ensure totalAmount matches subtotal + shipping + tax - discount
-  if (!this.isModified('items') && 
-      !this.isModified('subtotal') && 
-      !this.isModified('shippingCharge') && 
-      !this.isModified('tax') && 
-      !this.isModified('discount')) {
-    return next();
+  if (!this.isModified('items') &&
+    !this.isModified('subtotal') &&
+    !this.isModified('shippingCharge') &&
+    !this.isModified('tax') &&
+    !this.isModified('discount')) {
+    return ;
   }
-  
+
   this.subtotal = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   this.totalAmount = this.subtotal + (this.shippingCharge || 0) + (this.tax || 0) - (this.discount || 0);
-  
+
   // Ensure total amount doesn't go below 0
   if (this.totalAmount < 0) {
     this.totalAmount = 0;
   }
-  
-  next();
+
+
 });
 
 // Post-save middleware to update product stock
-orderSchema.post('save', async function(doc) {
-  if (doc.isNew && doc.status === ORDER_STATUS.PENDING) {
-    // Reduce stock for each item
-    const Product = mongoose.model('Product');
-    const updates = doc.items.map(item => 
-      Product.findByIdAndUpdate(
-        item.productId,
-        { $inc: { stock: -item.quantity } },
-        { new: true }
-      )
-    );
-    
-    try {
-      await Promise.all(updates);
-    } catch (error) {
-      // Log error but don't fail the order save
-      console.error('Failed to update product stock:', error);
-    }
-  }
-});
+// orderSchema.post('save', async function(doc) {
+//   if (doc.isNew && doc.status === ORDER_STATUS.PENDING) {
+//     // Reduce stock for each item
+//     const Product = mongoose.model('Product');
+//     const updates = doc.items.map(item => 
+//       Product.findByIdAndUpdate(
+//         item.productId,
+//         { $inc: { stock: -item.quantity } },
+//         { new: true }
+//       )
+//     );
+
+//     try {
+//       await Promise.all(updates);
+//     } catch (error) {
+//       // Log error but don't fail the order save
+//       console.error('Failed to update product stock:', error);
+//     }
+//   }
+// });
 
 module.exports = {
   Order: mongoose.model('Order', orderSchema),

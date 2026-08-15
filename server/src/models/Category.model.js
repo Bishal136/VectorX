@@ -51,14 +51,10 @@ categorySchema.index({ parent: 1, isActive: 1 });
 categorySchema.index({ name: 'text', description: 'text' });
 
 // Pre-save middleware to generate slug
-categorySchema.pre('save', function(next) {
-  if (this.isModified('name') || !this.slug) {
-    this.slug = this.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+categorySchema.pre('save', async function() {
+  if (!this.slug) {
+    this.slug = this.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   }
-  next();
 });
 
 // Method to get full category path

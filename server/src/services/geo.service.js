@@ -62,59 +62,36 @@ const buildGeoNearStage = (longitude, latitude, distanceField = 'distance') => {
 };
 
 // Get products sorted by distance
-const getSortedProducts = async (Product, { lat, lng, category, minPrice, maxPrice, page = 1, limit = 20 }) => {
-  // Validate coordinates
+const getSortedProducts = async (Product, { lat, lng, filters = {}, page = 1, limit = 20 }) => {
   const hasValidCoords = validateCoordinates(lng, lat);
-  
   const skip = (parseInt(page) - 1) * parseInt(limit);
-  const filter = { isActive: true };
-  
-  if (category) {
-    filter.category = category;
-  }
-  
-  if (minPrice !== undefined || maxPrice !== undefined) {
-    filter.price = {};
-    if (minPrice !== undefined) filter.price.$gte = parseFloat(minPrice);
-    if (maxPrice !== undefined) filter.price.$lte = parseFloat(maxPrice);
-  }
 
   let result;
   let fallbackUsed = false;
 
   if (hasValidCoords) {
-    // Use $geoNear for distance sorting
+    // Use $geoNear with pre-filter via `query` option
+    const geoNearStage = {
+      $geoNear: {
+        near: {
+          type: 'Point',
+          coordinates: [parseFloat(lng), parseFloat(lat)]
+        },
+        distanceField: 'distance',
+        spherical: true,
+        key: 'location',
+        query: filters  // Pre-filter before distance calculation
+      }
+    };
+
     const pipeline = [
-      { $match: filter },
-      {
-        $geoNear: {
-          near: {
-            type: 'Point',
-            coordinates: [parseFloat(lng), parseFloat(lat)]
-          },
-          distanceField: 'distance',
-          spherical: true,
-          key: 'location'
-        }
-      },
+      geoNearStage,
       { $skip: skip },
       { $limit: parseInt(limit) }
     ];
 
-    // For counting total
     const countPipeline = [
-      { $match: filter },
-      {
-        $geoNear: {
-          near: {
-            type: 'Point',
-            coordinates: [parseFloat(lng), parseFloat(lat)]
-          },
-          distanceField: 'distance',
-          spherical: true,
-          key: 'location'
-        }
-      },
+      geoNearStage,
       { $count: 'total' }
     ];
 
@@ -134,11 +111,11 @@ const getSortedProducts = async (Product, { lat, lng, category, minPrice, maxPri
   } else {
     // Fallback: sort by rating/popularity
     const [products, total] = await Promise.all([
-      Product.find(filter)
+      Product.find(filters)
         .sort({ 'rating.average': -1, 'rating.count': -1 })
         .skip(skip)
         .limit(parseInt(limit)),
-      Product.countDocuments(filter)
+      Product.countDocuments(filters)
     ]);
 
     result = {

@@ -1,11 +1,13 @@
 // vectorx-backend/src/controllers/user.controller.js
 const User = require('../models/User.model');
 const Product = require('../models/Product.model');
-const Order = require('../models/Order.model');
+const {Order,PAYMENT_METHODS} = require('../models/Order.model');
 const Cart = require('../models/Cart.model');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const { validateCoordinates } = require('../services/geo.service');
+const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 // ==================== Profile Management ====================
 
@@ -275,6 +277,8 @@ const setDefaultAddress = asyncHandler(async (req, res) => {
 });
 
 // ==================== Order Management ====================
+
+
 
 // @desc    Get user's orders
 // @route   GET /api/users/orders
@@ -630,6 +634,7 @@ module.exports = {
   // Orders
   getOrders,
   getOrderDetails,
+  
   
   // Wishlist
   getWishlist,

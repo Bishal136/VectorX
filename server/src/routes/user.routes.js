@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const {
+ 
   getProfile,
   updateProfile,
   updateLocation,
@@ -40,6 +41,7 @@ router.delete('/addresses/:addressId', removeAddress);
 router.put('/addresses/:addressId/default', setDefaultAddress);
 
 // Order management
+
 router.get('/orders', getOrders);
 router.get('/orders/:orderId', getOrderDetails);
 

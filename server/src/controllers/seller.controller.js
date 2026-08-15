@@ -213,8 +213,7 @@ const createProduct = asyncHandler(async (req, res) => {
     sellerId: seller._id,
     location: seller.location // Inherit seller's location
   };
-
-  const product = await productService.createProduct(productData);
+  const product = await productService.createProduct(req.user.id, req.body);
 
   res.status(201).json({
     success: true,
