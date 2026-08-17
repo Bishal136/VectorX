@@ -5,33 +5,53 @@ const Modal = ({ open, onClose, title, children }) => {
   const overlayRef = useRef();
   const modalRef = useRef();
 
-  // Trap focus inside modal
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  // Focus management and key listeners when modal opens
   useEffect(() => {
     if (!open) return;
+
+    // Focus the first form input or first focusable element when modal opens
+    const inputElement = modalRef.current?.querySelector('input:not([type="hidden"]), select, textarea');
     const focusableElements = modalRef.current?.querySelectorAll(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
     const firstElement = focusableElements?.[0];
-    const lastElement = focusableElements?.[focusableElements.length - 1];
+
+    if (inputElement) {
+      inputElement.focus();
+    } else if (firstElement) {
+      firstElement.focus();
+    }
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onCloseRef.current?.();
+      }
       if (e.key === 'Tab') {
-        if (e.shiftKey && document.activeElement === firstElement) {
+        const currentFocusables = modalRef.current?.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!currentFocusables || currentFocusables.length === 0) return;
+        const first = currentFocusables[0];
+        const last = currentFocusables[currentFocusables.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
-          lastElement?.focus();
-        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
           e.preventDefault();
-          firstElement?.focus();
+          first.focus();
         }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    firstElement?.focus();
-
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
+  }, [open]);
 
   // Close on overlay click
   const handleOverlayClick = (e) => {

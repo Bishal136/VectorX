@@ -110,11 +110,7 @@ const updateLocation = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message: 'Location updated successfully',
-    data: {
-      location: user.location,
-      pincode: user.pincode,
-      city: user.city
-    }
+    data: user
   });
 });
 

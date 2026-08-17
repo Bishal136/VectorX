@@ -229,7 +229,11 @@ const userSlice = createSlice({
 
       // ----- Update Location -----
       .addCase(updateUserLocation.fulfilled, (state, action) => {
-        state.profile = action.payload;
+        if (state.profile) {
+          state.profile = { ...state.profile, ...action.payload };
+        } else {
+          state.profile = action.payload;
+        }
         state.error = null;
       })
       .addCase(updateUserLocation.rejected, (state, action) => {

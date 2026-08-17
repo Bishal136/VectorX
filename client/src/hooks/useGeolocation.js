@@ -29,34 +29,38 @@ const useGeolocation = () => {
       setLoading(false);
       setError('Geolocation is not supported by your browser.');
       setManualMode(true);
-      return;
+      return Promise.reject(new Error('Geolocation is not supported by your browser.'));
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        dispatch(
-          setLocation({
-            lat: latitude,
-            lng: longitude,
-            pincode: null,
-            source: 'geo',
-          })
-        );
-        setLoading(false);
-        setError(null);
-      },
-      (err) => {
-        setLoading(false);
-        setError(err.message || 'Unable to retrieve location.');
-        setManualMode(true);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000,
-      }
-    );
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          dispatch(
+            setLocation({
+              lat: latitude,
+              lng: longitude,
+              pincode: null,
+              source: 'geo',
+            })
+          );
+          setLoading(false);
+          setError(null);
+          resolve({ latitude, longitude, lat: latitude, lng: longitude });
+        },
+        (err) => {
+          setLoading(false);
+          setError(err.message || 'Unable to retrieve location.');
+          setManualMode(true);
+          reject(err);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000,
+        }
+      );
+    });
   }, [dispatch]);
 
   // Set location manually (pincode or coordinates)
