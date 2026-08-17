@@ -67,6 +67,10 @@ const Navbar = () => {
   const cartItems = useSelector((state) => state.cart?.items) || [];
   const cartCount = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
+  // Buyer-only areas (cart, profile, order history) should only ever show for
+  // plain buyers — not sellers or admins, who have their own dashboards instead.
+  const isBuyer = !user?.role || user.role === 'user';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -158,12 +162,18 @@ const Navbar = () => {
                 <div className="absolute right-0 mt-3 w-52 bg-white rounded-lg shadow-lg ring-1 ring-black/5 py-1 z-30">
                   {isAuthenticated ? (
                     <>
-                      <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
-                        Profile
-                      </Link>
-                      <Link to="/orders" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
-                        Orders
-                      </Link>
+                      {/* Buyer-only: profile + order history. Sellers/admins get their
+                          own dashboard links below instead. */}
+                      {isBuyer && (
+                        <>
+                          <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
+                            Profile
+                          </Link>
+                          <Link to="/orders" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
+                            Orders
+                          </Link>
+                        </>
+                      )}
                       {user?.role === 'seller' && (
                         <Link to="/seller/dashboard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
                           Seller Dashboard
@@ -195,8 +205,8 @@ const Navbar = () => {
 
             <span className="hidden sm:block w-px h-5 bg-gray-300" aria-hidden="true" />
 
-            {/* Cart icon */}
-            {isAuthenticated && (!user?.role || user?.role === 'user') && (
+            {/* Cart icon — buyers only */}
+            {isAuthenticated && isBuyer && (
               <Link
                 to="/cart"
                 className="relative text-gray-700 hover:text-green-700 transition-colors"

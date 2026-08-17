@@ -23,8 +23,8 @@ const register = asyncHandler(async (req, res) => {
   }
 
   // Check if user exists
-  const userExists = await User.findOne({ 
-    $or: [{ email }, { phone }] 
+  const userExists = await User.findOne({
+    $or: [{ email }, { phone }]
   });
 
   if (userExists) {
@@ -91,7 +91,7 @@ const register = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    message: user.role === 'seller' 
+    message: user.role === 'seller'
       ? 'Seller registered successfully. Please verify your email with OTP and complete your shop details after verification.'
       : 'User registered successfully. Please verify your email with OTP.',
     data: responseData
@@ -106,7 +106,7 @@ const verifyOTPController = asyncHandler(async (req, res) => {
 
   // Verify OTP from database
   const result = await verifyOTP(email, otp, 'verification');
-  
+
   if (!result.valid) {
     return res.status(400).json({
       success: false,
@@ -204,7 +204,7 @@ const login = asyncHandler(async (req, res) => {
 
   if (user.role === 'seller') {
     const sellerProfile = await Seller.findOne({ user: user._id });
-    
+
     if (!sellerProfile) {
       warning = {
         message: 'Your seller profile is missing. Please register as a seller to manage your shop.',
@@ -262,15 +262,30 @@ const googleAuth = asyncHandler(async (req, res) => {
 // @access  Public
 const googleAuthCallback = asyncHandler(async (req, res) => {
   const user = req.user;
-  
+
   // Generate tokens
   const accessToken = generateAccessToken(user._id);
   const refreshToken = await generateRefreshToken(user._id);
-  
-  // Redirect to frontend with tokens
-  const redirectUrl = `${process.env.FRONTEND_URL}/oauth-success?accessToken=${accessToken}&refreshToken=${refreshToken}`;
-  
+
+  const userData = {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    isVerified: user.isVerified,
+    location: user.location
+  };
+
+  const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/+$/, '');
+  const redirectUrl =
+    `${frontendUrl}/auth/google/callback` +
+    `?accessToken=${encodeURIComponent(accessToken)}` +
+    `&refreshToken=${encodeURIComponent(refreshToken)}` +
+    `&user=${encodeURIComponent(JSON.stringify(userData))}`;
+
   res.redirect(redirectUrl);
+
 });
 
 // @desc    Get current user profile
@@ -282,7 +297,7 @@ const getProfile = asyncHandler(async (req, res) => {
   }
 
   const user = req.user.toObject ? req.user.toObject() : { ...req.user };
-  
+
   // Remove sensitive fields
   delete user.password;
   delete user.refreshTokens;
@@ -308,17 +323,17 @@ const getProfile = asyncHandler(async (req, res) => {
 // @access  Public
 const refreshToken = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
-  
+
   if (!refreshToken) {
     return res.status(400).json({
       success: false,
       message: 'Refresh token is required'
     });
   }
-  
+
   try {
     const result = await refreshAccessToken(refreshToken);
-    
+
     res.json({
       success: true,
       data: result
@@ -336,13 +351,13 @@ const refreshToken = asyncHandler(async (req, res) => {
 // @access  Private
 const logout = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
-  
+
   if (refreshToken) {
     await removeRefreshToken(req.user.id, refreshToken);
   } else {
     await removeAllRefreshTokens(req.user.id);
   }
-  
+
   res.json({
     success: true,
     message: 'Logged out successfully'
@@ -380,7 +395,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
   }
 
   const result = await sendOTP(email, 'password_reset');
-  
+
   if (!result.success) {
     return res.status(500).json({
       success: false,
@@ -422,7 +437,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   }
 
   const result = await verifyOTP(email, otp, 'password_reset');
-  
+
   if (!result.valid) {
     return res.status(400).json({
       success: false,
@@ -486,7 +501,7 @@ const resendOTP = asyncHandler(async (req, res) => {
   }
 
   const result = await sendOTP(email, type);
-  
+
   if (!result.success) {
     return res.status(500).json({
       success: false,
@@ -507,14 +522,14 @@ const resendOTP = asyncHandler(async (req, res) => {
 // @access  Public (but should be protected in production)
 const seedAdmin = asyncHandler(async (req, res) => {
   const { secret } = req.body;
-  
+
   if (secret !== process.env.ADMIN_SEED_SECRET) {
     return res.status(401).json({
       success: false,
       message: 'Invalid seed secret'
     });
   }
-  
+
   const existingAdmin = await User.findOne({ role: 'admin' });
   if (existingAdmin) {
     return res.status(400).json({
@@ -522,7 +537,7 @@ const seedAdmin = asyncHandler(async (req, res) => {
       message: 'Admin account already exists'
     });
   }
-  
+
   const admin = await User.create({
     name: 'Admin',
     email: 'admin@vectorx.com',
@@ -530,7 +545,7 @@ const seedAdmin = asyncHandler(async (req, res) => {
     role: 'admin',
     isVerified: true
   });
-  
+
   res.status(201).json({
     success: true,
     message: 'Admin account created successfully',

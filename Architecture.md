@@ -170,13 +170,13 @@ vectorx-frontend/
 │   │
 │   ├── components/                    # রিইউজেবল UI কম্পোনেন্ট
 │   │   ├── common/                    # ছোট ছোট UI এলিমেন্ট
-│   │   │   ├── Button.jsx
+│   │   │   ├── Button.jsx ✅  
 │   │   │   ├── Card.jsx
-│   │   │   ├── Modal.jsx
+│   │   │   ├── Modal.jsx ✅ 
 │   │   │   ├── Input.jsx
 │   │   │   ├── Select.jsx
 │   │   │   ├── Table.jsx
-│   │   │   ├── Badge.jsx
+│   │   │   ├── Badge.jsx  ✅
 │   │   │   └── Toast.jsx (বা react-toastify ব্যবহার)
 │   │   ├── layout/                    # লেআউট কম্পোনেন্ট (Navbar, Sidebar, Footer)
 │   │   │   ├── UserLayout.jsx ✅        # ইউজার প্যানেলের লেআউট (Navbar + Footer + Outlet)

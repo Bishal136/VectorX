@@ -7,6 +7,7 @@ import AdminLayout from '../components/layout/AdminLayout';
 import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
 import VerifyOtp from '../pages/auth/VerifyOtp';
+import GoogleCallback from '../pages/auth/GoogleCallback';
 // import ForgotPassword from '../pages/auth/ForgotPassword';
 
 // User pages
@@ -47,6 +48,7 @@ const AppRoutes = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOtp />} />
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
         {/* <Route path="/forgot-password" element={<ForgotPassword />} /> */}
         {/* <Route path="/products" element={<ProductListing />} /> */}
         {/* <Route path="/products/:id" element={<ProductDetails />} /> */}

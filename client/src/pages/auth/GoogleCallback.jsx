@@ -1,14 +1,11 @@
-// Suggested location: src/pages/auth/GoogleCallback.jsx
-//
-// Expected flow once the backend route exists:
+// Flow:
 // 1. User clicks "Sign in with Google" -> browser goes to {API_URL}/auth/google
-// 2. Backend runs the OAuth flow with Google, then redirects the browser to
-//    something like: {FRONTEND_URL}/auth/google/callback?accessToken=...&refreshToken=...&user=<encoded-json>
+// 2. Backend runs the OAuth flow with Google (passport.js), then redirects the
+//    browser to: {FRONTEND_URL}/auth/google/callback?accessToken=...&refreshToken=...&user=<encoded-json>
+//    (see googleAuthCallback in server/src/controllers/auth.controller.js)
 // 3. This page reads those query params and dispatches handleGoogleCallback
-//    (already defined in authSlice.js) to store them exactly like a normal login.
-//
-// Adjust the query param names / user encoding below to match whatever your
-// backend actually sends back once that route is built.
+//    (defined in authSlice.js) to store them exactly like a normal login.
+// Registered at /auth/google/callback in routes/AppRoutes.jsx.
 
 import { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -36,7 +33,8 @@ const GoogleCallback = () => {
 
     let user;
     try {
-      user = JSON.parse(decodeURIComponent(userParam));
+     
+      user = JSON.parse(userParam);
     } catch {
       navigate('/login?error=google-auth-failed', { replace: true });
       return;
