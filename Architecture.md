@@ -137,50 +137,125 @@ vectorx-backend/
 
 ```
 vectorx-frontend/
-├── src/
-│   ├── app/
-│   │   └── store.js                # configureStore, root reducer
-│   ├── features/
-│   │   ├── auth/
-│   │   │   ├── authSlice.js
-│   │   │   └── authApi.js          # RTK Query endpoints (optional)
-│   │   ├── products/
-│   │   │   ├── productSlice.js
-│   │   │   └── productApi.js
-│   │   ├── cart/
-│   │   │   └── cartSlice.js
-│   │   ├── seller/
-│   │   │   └── sellerSlice.js
-│   │   └── admin/
-│   │       └── adminSlice.js
-│   ├── components/
-│   │   ├── common/                 # Button, Card, Modal, Input, Table
-│   │   ├── layout/                 # Navbar, Sidebar, Footer
-│   │   └── location/               # LocationPrompt, PincodeInput
-│   ├── pages/
-│   │   ├── user/                   # Home, ProductListing, ProductDetails, Cart, Checkout, Profile
-│   │   ├── seller/                 # Dashboard, Products, Orders, ShopProfile
-│   │   └── admin/                  # Dashboard, Users, Sellers, Categories, Orders, Settings
-│   ├── routes/
-│   │   ├── UserRoutes.jsx
-│   │   ├── SellerRoutes.jsx
-│   │   ├── AdminRoutes.jsx
-│   │   └── ProtectedRoute.jsx      # role-based route guard
-│   ├── hooks/
-│   │   ├── useGeolocation.js
-│   │   └── useAuth.js
-│   ├── services/
-│   │   └── axiosInstance.js        # base API client with interceptors
-│   ├── styles/
-│   │   └── theme.js                # Tailwind/MUI theme tokens from Figma
-│   ├── App.jsx
-│   └── main.jsx
 ├── public/
-├── .env.example
+│   └── index.html                     # React এর এন্ট্রি HTML
+├── src/
+│   ├── app/                           # Redux store কনফিগারেশন
+│   │   ├── store.js                   # configureStore, middleware, API reducer যোগ
+│   │   └── rootReducer.js             # (ঐচ্ছিক) সব slice একত্রে করা (যদি store এ সরাসরি না করি)
+│   │
+│   ├── features/                      # প্রতিটি ফিচার আলাদা মডিউল
+│   │   ├── auth/                      # প্রমাণীকরণ (লগইন, রেজিস্টার, OTP, টোকেন)
+│   │   │   ├── authSlice.js  ✅         # user, token, location, status, error
+│   │   │   └── authApi.js    ✅         # লগইন, রেজিস্টার, OTP ভেরিফাই, রিফ্রেশ, ফরগট পাসওয়ার্ড
+│   │   ├── user/                      # ইউজার প্রোফাইল, অ্যাড্রেস, উইশলিস্ট, অর্ডার হিস্ট্রি
+│   │   │   ├── userSlice.js ✅          # প্রোফাইল, অ্যাড্রেস, উইশলিস্ট, অর্ডার লিস্ট স্টেট
+│   │   │   └── userApi.js     ✅        # প্রোফাইল পড়া/আপডেট, লোকেশন আপডেট, উইশলিস্ট টগল, অর্ডার হিস্ট্রি
+│   │   ├── products/                  # প্রোডাক্ট ব্রাউজিং, ফিল্টার, ডিটেইল, রিভিউ
+│   │   │   ├── productSlice.js     ✅      # প্রোডাক্ট লিস্ট, ফিল্টার, পেজিনেশন, সাজানো (distance/popularity)
+│   │   │   └── productApi.js        ✅     # GET /products (লোকেশনসহ), GET /products/:id, POST রিভিউ
+│   │   ├── cart/                      # শপিং কার্ট (স্থানীয় ও সার্ভার সিঙ্ক)
+│   │   │   └── cartSlice.js      ✅        # আইটেম, কোয়ান্টিটি, শিপিং অ্যাড্রেস, টোটাল
+│   │   ├── order/                     # অর্ডার তৈরি, ট্র্যাকিং, স্ট্যাটাস ম্যানেজমেন্ট
+│   │   │   ├── orderSlice.js      ✅       # বর্তমান অর্ডার, অর্ডার লিস্ট, ডিটেইল
+│   │   │   └── orderApi.js          ✅     # POST /orders, GET /orders/:id, (সেলার/অ্যাডমিনের জন্য আলাদা এন্ডপয়েন্ট)
+│   │   ├── payment/                   # পেমেন্ট ইন্টেন্ট ও স্ট্যাটাস
+│   │   │   └── paymentSlice.js        # paymentIntent, status (idle/processing/succeeded/failed), error
+│   │   ├── seller/                    # সেলার প্যানেল (ড্যাশবোর্ড, প্রোডাক্ট CRUD, অর্ডার)
+│   │   │   ├── sellerSlice.js         # ড্যাশবোর্ড স্ট্যাটস, প্রোডাক্ট লিস্ট, অর্ডার লিস্ট, শপ প্রোফাইল
+│   │   │   └── sellerApi.js           # সেলার রেজিস্ট্রেশন, ড্যাশবোর্ড, প্রোডাক্ট CRUD, অর্ডার স্ট্যাটাস আপডেট
+│   │   └── admin/                     # অ্যাডমিন প্যানেল (সব ইউজার, সেলার, ক্যাটেগরি, সেটিংস)
+│   │       ├── adminSlice.js          # ইউজার, সেলার, ক্যাটেগরি, প্ল্যাটফর্ম স্ট্যাটস, সেটিংস
+│   │       └── adminApi.js            # ইউজার/সেলার ব্লক, ভেরিফাই, ক্যাটেগরি CRUD, সেটিংস আপডেট, ড্যাশবোর্ড
+│   │
+│   ├── components/                    # রিইউজেবল UI কম্পোনেন্ট
+│   │   ├── common/                    # ছোট ছোট UI এলিমেন্ট
+│   │   │   ├── Button.jsx
+│   │   │   ├── Card.jsx
+│   │   │   ├── Modal.jsx
+│   │   │   ├── Input.jsx
+│   │   │   ├── Select.jsx
+│   │   │   ├── Table.jsx
+│   │   │   ├── Badge.jsx
+│   │   │   └── Toast.jsx (বা react-toastify ব্যবহার)
+│   │   ├── layout/                    # লেআউট কম্পোনেন্ট (Navbar, Sidebar, Footer)
+│   │   │   ├── UserLayout.jsx ✅        # ইউজার প্যানেলের লেআউট (Navbar + Footer + Outlet)
+│   │   │   ├── SellerLayout.jsx  ✅     # সেলার প্যানেল (Sidebar + Topbar + Outlet)
+│   │   │   ├── AdminLayout.jsx   ✅     # অ্যাডমিন প্যানেল (Sidebar + Topbar + Outlet)
+│   │   │   ├── Navbar.jsx       ✅      # ইউজার ন্যাভবার (লোগো, সার্চ, কার্ট, ড্রপডাউন)
+│   │   │   ├── SellerSidebar.jsx   ✅   # সেলার সাইডবার মেনু
+│   │   │   ├── SellerTopbar.jsx    ✅   # সেলার টপবার (নোটিফিকেশন, প্রোফাইল)
+│   │   │   ├── AdminSidebar.jsx    ✅   # অ্যাডমিন সাইডবার
+│   │   │   ├── AdminTopbar.jsx     ✅   # অ্যাডমিন টপবার
+│   │   │   └── Footer.jsx     ✅        # ফুটার (শুধু ইউজার প্যানেলে)
+│   │   └── location/                  # লোকেশন সংক্রান্ত UI
+│   │       ├── LocationPrompt.jsx  ✅   # লোকেশন অনুমতি চাওয়ার পপআপ
+│   │       ├── PincodeInput.jsx    ✅   # ম্যানুয়াল পিনকোড ইনপুট
+│   │       └── AddressAutocomplete.jsx ✅  # গুগল ম্যাপস অটোকমপ্লিট
+│   │
+│   ├── pages/                         # পেজ লেভেল কম্পোনেন্ট (প্রতিটি রাউটের জন্য)
+│   │   ├── auth/                      # অথেন্টিকেশন পেজ
+│   │   │   ├── Login.jsx ✅
+│   │   │   ├── Register.jsx  ✅
+│   │   │   ├── VerifyOtp.jsx  ✅
+│   │   │   └── ForgotPassword.jsx
+            └──  GoogleCallback.jsx ✅
+│   │   ├── user/                      # ইউজার প্যানেল পেজ
+│   │   │   ├── Home.jsx
+│   │   │   ├── ProductListing.jsx
+│   │   │   ├── ProductDetails.jsx
+│   │   │   ├── Cart.jsx
+│   │   │   ├── Checkout.jsx
+│   │   │   ├── Profile.jsx
+│   │   │   └── OrderHistory.jsx
+│   │   ├── seller/                    # সেলার প্যানেল পেজ
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Products.jsx           # প্রোডাক্ট লিস্ট + অ্যাড/এডিট মডেল
+│   │   │   ├── Orders.jsx             # অর্ডার লিস্ট + স্ট্যাটাস আপডেট
+│   │   │   └── ShopProfile.jsx        # শপ প্রোফাইল এডিট
+│   │   ├── admin/                     # অ্যাডমিন প্যানেল পেজ
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Users.jsx
+│   │   │   ├── Sellers.jsx            # সেলার ভেরিফিকেশন কিউ
+│   │   │   ├── Categories.jsx
+│   │   │   ├── Orders.jsx
+│   │   │   └── Settings.jsx
+│   │   └── Unauthorized.jsx           # ৪০৩ পেজ (অনুমতি নেই)
+│   │
+│   ├── routes/                        # রাউট কনফিগারেশন
+│   │   ├── AppRoutes.jsx              # সব রাউটের প্যারেন্ট (BrowserRouter এর ভেতর)
+│   │   ├── ProtectedRoute.jsx         # রোল-বেসড গার্ড (টোকেন ও রোল চেক)
+│   │   ├── UserRoutes.jsx             # (ঐচ্ছিক) ইউজার রাউট গ্রুপ
+│   │   ├── SellerRoutes.jsx           # (ঐচ্ছিক) সেলার রাউট গ্রুপ
+│   │   └── AdminRoutes.jsx            # (ঐচ্ছিক) অ্যাডমিন রাউট গ্রুপ
+│   │
+│   ├── hooks/                         # কাস্টম হুক
+│   │   ├── useGeolocation.js          # ব্রাউজার জিওলোকেশন + পিনকোড ফ্যালব্যাক
+│   │   ├── useAuth.js                 # auth স্টেট ও লগআউট ফাংশন
+│   │   └── useToast.js                # টোস্ট মেসেজ দেখানোর হুক (যদি react-toastify না ব্যবহার করি)
+│   │
+│   ├── services/                      # বাহ্যিক সার্ভিস কনফিগারেশন
+│   │   └── axiosInstance.js           # Axios instance (baseURL, interceptors)
+│   │
+│   ├── utils/                         # ইউটিলিটি ফাংশন ও কনস্ট্যান্ট
+│   │   ├── constants.js               # রোল, অর্ডার স্ট্যাটাস, পেমেন্ট স্ট্যাটাস ইত্যাদি
+│   │   └── helpers.js                 # ফরম্যাটিং (টাকা, তারিখ), ভ্যালিডেশন হেল্পার
+│   │
+│   ├── styles/                        # স্টাইলিং থিম
+│   │   └── theme.js                   # Tailwind কাস্টম থিম (Figma টোকেন ইম্পোর্ট)
+│   │
+│   ├── App.jsx                        # অ্যাপের রুট কম্পোনেন্ট (BrowserRouter + ToastContainer)
+│   ├── main.jsx                       # ReactDOM.render (Provider দিয়ে র‍্যাপ)
+│   └── index.css                      # Tailwind ডিরেক্টিভস
+│
+├── .env.example                       # এনভায়রনমেন্ট ভেরিয়েবলের টেমপ্লেট
+├── .eslintrc.json                     # ESLint কনফিগ (rules.md অনুযায়ী)
+├── .prettierrc                        # Prettier কনফিগ
+├── tailwind.config.js                 # Tailwind কাস্টমাইজেশন
+├── postcss.config.js
 ├── package.json
 └── README.md
 ```
-
 ---
 
 ## 3. Database Schema (Mongoose Models)
