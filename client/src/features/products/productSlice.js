@@ -24,20 +24,38 @@ export const fetchProducts = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const params = new URLSearchParams({
-        page,
-        limit,
-        ...(sort && { sort }),
-        ...(category && { category }),
-        ...(minPrice !== undefined && { minPrice }),
-        ...(maxPrice !== undefined && { maxPrice }),
-        ...(search && { search }),
-        ...(minRating && { minRating }),
-        ...(isFeatured !== undefined && { isFeatured }),
-        ...(lat && lng && { lat, lng }),
-      });
-      const response = await axiosInstance.get(`/products?${params}`);
-      return response.data.data; // { products, sortedBy, fallbackUsed, pagination? }
+      const params = new URLSearchParams();
+      if (page) params.append('page', page);
+      if (limit) params.append('limit', limit);
+      if (sort) params.append('sort', sort);
+      if (category && String(category).trim() !== '') params.append('category', category);
+      if (minPrice !== undefined && minPrice !== null && minPrice !== '' && !isNaN(Number(minPrice))) {
+        params.append('minPrice', minPrice);
+      }
+      if (maxPrice !== undefined && maxPrice !== null && maxPrice !== '' && !isNaN(Number(maxPrice))) {
+        params.append('maxPrice', maxPrice);
+      }
+      if (search && String(search).trim() !== '') params.append('search', String(search).trim());
+      if (minRating !== undefined && minRating !== null && minRating !== '' && !isNaN(Number(minRating))) {
+        params.append('minRating', minRating);
+      }
+      if (isFeatured !== undefined && isFeatured !== null) params.append('isFeatured', isFeatured);
+      if (
+        lat !== undefined &&
+        lat !== null &&
+        lng !== undefined &&
+        lng !== null &&
+        !isNaN(Number(lat)) &&
+        !isNaN(Number(lng))
+      ) {
+        params.append('lat', lat);
+        params.append('lng', lng);
+      }
+      const response = await axiosInstance.get(`/products?${params.toString()}`);
+      return {
+        ...response.data.data,
+        pagination: response.data.pagination || response.data.data?.pagination,
+      };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch products');
     }
@@ -279,7 +297,7 @@ const productSlice = createSlice({
       })
 
       // ----- Mark Helpful / Report (no state change needed, but we can update the review)
-      .addCase(markReviewHelpful.fulfilled, (state, action) => {
+      .addCase(markReviewHelpful.fulfilled, (state) => {
         // If the server returns the updated review, we can update it.
         // For now, just clear error.
         state.error = null;

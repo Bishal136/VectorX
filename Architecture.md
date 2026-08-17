@@ -202,7 +202,7 @@ vectorx-frontend/
             └──  GoogleCallback.jsx ✅
 │   │   ├── user/                      # ইউজার প্যানেল পেজ
 │   │   │   ├── Home.jsx
-│   │   │   ├── ProductListing.jsx
+│   │   │   ├── ProductListing.jsx ✅
 │   │   │   ├── ProductDetails.jsx
 │   │   │   ├── Cart.jsx
 │   │   │   ├── Checkout.jsx

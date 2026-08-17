@@ -4,6 +4,7 @@ const router = express.Router();
 
 const {
   getProducts,
+  getCategories,
   getProductById,
   getRelatedProducts,
   getProductsBySeller,
@@ -79,6 +80,13 @@ router.get(
   validate(productQuerySchema, 'query'),
   getProducts
 );
+
+/**
+ * @route   GET /api/products/categories
+ * @desc    Get all active product categories
+ * @access  Public
+ */
+router.get('/categories', getCategories);
 
 /**
  * @route   GET /api/products/:id

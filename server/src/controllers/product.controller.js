@@ -6,6 +6,20 @@ const ApiError = require('../utils/ApiError');
 const { ORDER_STATUS } = require('../models/Order.model');
 const Product = require('../models/Product.model');
 const Order = require('../models/Order.model');
+const Category = require('../models/Category.model');
+const mongoose = require('mongoose');
+
+/**
+ * Get public active categories
+ * GET /api/products/categories
+ */
+const getCategories = asyncHandler(async (req, res) => {
+  const categories = await Category.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean();
+  res.status(200).json({
+    success: true,
+    data: categories
+  });
+});
 
 /**
  * Get products with location-based sorting
@@ -40,49 +54,112 @@ const getProducts = asyncHandler(async (req, res) => {
     isApproved: true
   };
 
-  if (category) filters.category = category;
-  if (subCategory) filters.subCategory = subCategory;
-  if (sellerId) filters.sellerId = sellerId;
-  if (isFeatured === 'true') filters.isFeatured = true;
+  // Safe Category resolution (ID or slug or name)
+  if (category && String(category).trim() !== '' && String(category).trim() !== 'all') {
+    const catStr = String(category).trim();
+    if (mongoose.Types.ObjectId.isValid(catStr) && /^[0-9a-fA-F]{24}$/.test(catStr)) {
+      filters.category = new mongoose.Types.ObjectId(catStr);
+    } else {
+      const catDoc = await Category.findOne({
+        isActive: true,
+        $or: [
+          { slug: catStr.toLowerCase() },
+          { name: { $regex: new RegExp(`^${catStr}$`, 'i') } }
+        ]
+      });
+
+      if (catDoc) {
+        filters.category = catDoc._id;
+      } else {
+        // Not found: set to a valid non-matching ObjectId so it returns 0 items rather than crashing
+        filters.category = new mongoose.Types.ObjectId();
+      }
+    }
+  }
+
+  // Safe SubCategory resolution
+  if (subCategory && String(subCategory).trim() !== '') {
+    const subStr = String(subCategory).trim();
+    if (mongoose.Types.ObjectId.isValid(subStr) && /^[0-9a-fA-F]{24}$/.test(subStr)) {
+      filters.subCategory = new mongoose.Types.ObjectId(subStr);
+    } else {
+      const subCatDoc = await Category.findOne({
+        isActive: true,
+        $or: [
+          { slug: subStr.toLowerCase() },
+          { name: { $regex: new RegExp(`^${subStr}$`, 'i') } }
+        ]
+      });
+
+      if (subCatDoc) {
+        filters.subCategory = subCatDoc._id;
+      } else {
+        filters.subCategory = new mongoose.Types.ObjectId();
+      }
+    }
+  }
+
+  // Safe SellerId resolution
+  if (sellerId && String(sellerId).trim() !== '') {
+    const sellerStr = String(sellerId).trim();
+    if (mongoose.Types.ObjectId.isValid(sellerStr) && /^[0-9a-fA-F]{24}$/.test(sellerStr)) {
+      filters.sellerId = new mongoose.Types.ObjectId(sellerStr);
+    } else {
+      filters.sellerId = sellerStr;
+    }
+  }
+
+  if (isFeatured === 'true' || isFeatured === true) {
+    filters.isFeatured = true;
+  }
 
   // Price range
   if (minPrice || maxPrice) {
     filters.price = {};
-    if (minPrice) filters.price.$gte = parseFloat(minPrice);
-    if (maxPrice) filters.price.$lte = parseFloat(maxPrice);
+    if (minPrice && !isNaN(parseFloat(minPrice))) filters.price.$gte = parseFloat(minPrice);
+    if (maxPrice && !isNaN(parseFloat(maxPrice))) filters.price.$lte = parseFloat(maxPrice);
   }
 
   // Minimum rating
-  if (minRating) {
+  if (minRating && !isNaN(parseFloat(minRating))) {
     filters['rating.average'] = { $gte: parseFloat(minRating) };
-  }
-
-  // Text search
-  if (search) {
-    filters.$text = { $search: search };
   }
 
   // Check if location is provided
   const hasLocation = lat && lng &&
     !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
 
+  // Text search
+  if (search && String(search).trim() !== '') {
+    const trimmedSearch = String(search).trim();
+    if (hasLocation && (sort === 'distance' || !sort)) {
+      filters.$or = [
+        { name: { $regex: trimmedSearch, $options: 'i' } },
+        { description: { $regex: trimmedSearch, $options: 'i' } },
+        { tags: { $regex: trimmedSearch, $options: 'i' } }
+      ];
+    } else {
+      filters.$text = { $search: trimmedSearch };
+    }
+  }
+
   let products;
   let sortedBy = sort;
   let fallbackUsed = false;
+  let totalCount = 0;
 
   if (hasLocation && (sort === 'distance' || !sort)) {
     // Use geospatial sorting
     const result = await geoService.getSortedProducts(Product, {
       lat: parseFloat(lat),
       lng: parseFloat(lng),
-      category: filters.category,
-      minPrice: filters.price?.$gte,
-      maxPrice: filters.price?.$lte,
+      filters,
       page: pageNum,
       limit: limitNum
     });
 
     products = result.products;
+    totalCount = result.total || 0;
     fallbackUsed = result.fallbackUsed || false;
     sortedBy = 'distance';
   } else {
@@ -120,8 +197,7 @@ const getProducts = asyncHandler(async (req, res) => {
       query = query.sort(sortOptions);
     }
 
-    const totalCount = await Product.countDocuments(filters);
-    const totalPages = Math.ceil(totalCount / limitNum);
+    totalCount = await Product.countDocuments(filters);
 
     products = await query
       .skip((pageNum - 1) * limitNum)
@@ -148,6 +224,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
       return {
         id: product._id,
+        _id: product._id,
         name: product.name,
         slug: product.slug,
         description: product.shortDescription || product.description,
@@ -166,7 +243,7 @@ const getProducts = asyncHandler(async (req, res) => {
         sellerId: product.sellerId?._id || product.sellerId,
         shopName: product.sellerId?.shopName || 'Unknown Seller',
         sellerVerified: product.sellerId?.isVerified || false,
-        distanceKm: product.distanceKm || 0,
+        distanceKm: product.distanceKm !== undefined ? product.distanceKm : (product.distance ? (product.distance / 1000) : 0),
         hasVariants: product.hasVariants || false,
         isFeatured: product.isFeatured || false,
         createdAt: product.createdAt
@@ -191,8 +268,8 @@ const getProducts = asyncHandler(async (req, res) => {
     pagination: {
       page: pageNum,
       limit: limitNum,
-      totalPages: Math.ceil(productsWithSeller.length / limitNum),
-      totalResults: productsWithSeller.length
+      totalPages: Math.ceil(totalCount / limitNum) || 1,
+      totalResults: totalCount
     }
   });
 });
@@ -638,6 +715,7 @@ const markReviewHelpful = asyncHandler(async (req, res) => {
 
 module.exports = {
   getProducts,
+  getCategories,
   getProductById,
   getRelatedProducts,
   getProductsBySeller,

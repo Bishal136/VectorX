@@ -324,7 +324,7 @@ const Profile = () => {
             </div>
 
             {hasCoordinates || profile?.pincode ? (
-              <div className="bg-gradient-to-br from-indigo-50/70 to-blue-50/70 border border-indigo-100/80 rounded-xl p-4 mb-4">
+              <div className="bg-linear-to-br from-indigo-50/70 to-blue-50/70 border border-indigo-100/80 rounded-xl p-4 mb-4">
                 {profile?.pincode && (
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Active Pincode</span>

@@ -175,7 +175,7 @@ const cartSlice = createSlice({
         state.status = 'loading';
         state.error = null;
       })
-      .addCase(clearCart.fulfilled, (state, action) => {
+      .addCase(clearCart.fulfilled, (state) => {
         state.status = 'succeeded';
         state.items = [];
         state.total = 0;

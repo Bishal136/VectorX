@@ -12,7 +12,7 @@ import GoogleCallback from '../pages/auth/GoogleCallback';
 
 // User pages
 import Home from '../pages/user/Home';
-// import ProductListing from '../pages/user/ProductListing';
+import ProductListing from '../pages/user/ProductListing';
 // import ProductDetails from '../pages/user/ProductDetails';
 // import Cart from '../pages/user/Cart';
 // import Checkout from '../pages/user/Checkout';
@@ -50,7 +50,7 @@ const AppRoutes = () => {
         <Route path="/verify-otp" element={<VerifyOtp />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
         {/* <Route path="/forgot-password" element={<ForgotPassword />} /> */}
-        {/* <Route path="/products" element={<ProductListing />} /> */}
+        <Route path="/products" element={<ProductListing />} />
         {/* <Route path="/products/:id" element={<ProductDetails />} /> */}
         {/* <Route path="/unauthorized" element={<Unauthorized />} /> */}
 
