@@ -12,8 +12,7 @@ class ProductService {
     // Verify seller exists and is verified
     const seller = await Seller.findOne({ 
       user: sellerId,
-      verificationStatus: 'approved',
-      isVerified: true
+      $or: [{ verificationStatus: 'approved' }, { isVerified: true }]
     });
     
     if (!seller) {
@@ -42,9 +41,35 @@ class ProductService {
       throw new ApiError(400, 'Invalid seller coordinates');
     }
     
+    // Normalize images
+    let normalizedImages = [];
+    if (Array.isArray(productData.images)) {
+      normalizedImages = productData.images
+        .map((img, idx) => {
+          if (typeof img === 'string' && img.trim()) {
+            return {
+              url: img.trim(),
+              isPrimary: idx === 0,
+              publicId: `img_${Date.now()}_${idx}`
+            };
+          }
+          if (img && typeof img === 'object' && img.url) {
+            return {
+              url: img.url,
+              isPrimary: img.isPrimary !== undefined ? img.isPrimary : idx === 0,
+              publicId: img.publicId || `img_${Date.now()}_${idx}`,
+              alt: img.alt || ''
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+    }
+
     // Prepare product data
     const productDataToSave = {
       ...productData,
+      images: normalizedImages,
       sellerId: seller._id,
       location: {
         type: 'Point',
@@ -55,6 +80,7 @@ class ProductService {
     // Create product
     const product = new Product(productDataToSave);
     await product.save();
+    await product.populate('category', 'name slug');
     
     return product;
   }
@@ -74,7 +100,28 @@ class ProductService {
     
     // Update fields
     Object.keys(updateData).forEach(key => {
-      if (key !== 'sellerId' && key !== 'location') {
+      if (key === 'images' && Array.isArray(updateData.images)) {
+        product.images = updateData.images
+          .map((img, idx) => {
+            if (typeof img === 'string' && img.trim()) {
+              return {
+                url: img.trim(),
+                isPrimary: idx === 0,
+                publicId: `img_${Date.now()}_${idx}`
+              };
+            }
+            if (img && typeof img === 'object' && img.url) {
+              return {
+                url: img.url,
+                isPrimary: img.isPrimary !== undefined ? img.isPrimary : idx === 0,
+                publicId: img.publicId || `img_${Date.now()}_${idx}`,
+                alt: img.alt || ''
+              };
+            }
+            return null;
+          })
+          .filter(Boolean);
+      } else if (key !== 'sellerId' && key !== 'location') {
         product[key] = updateData[key];
       }
     });

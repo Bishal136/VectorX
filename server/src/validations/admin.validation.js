@@ -18,9 +18,9 @@ const verifySeller = Joi.object({
 
 const createCategory = Joi.object({
   name: Joi.string().trim().required().max(100),
-  slug: Joi.string().trim().lowercase().max(100).optional(), // optional, auto-generated if missing
-  description: Joi.string().trim().optional(),
-  parent: objectId.optional().allow(null),
+  slug: Joi.string().trim().lowercase().max(100).optional().allow(''), // optional, auto-generated if missing
+  description: Joi.string().trim().optional().allow('', null),
+  parent: objectId.optional().allow(null, ''),
   image: Joi.object({
     url: Joi.string().uri().optional(),
     publicId: Joi.string().optional(),
@@ -36,8 +36,9 @@ const createCategory = Joi.object({
 
 const updateCategory = Joi.object({
   name: Joi.string().trim().max(100).optional(),
-  description: Joi.string().trim().optional(),
-  parent: objectId.optional().allow(null),
+  slug: Joi.string().trim().lowercase().max(100).optional().allow(''),
+  description: Joi.string().trim().optional().allow('', null),
+  parent: objectId.optional().allow(null, ''),
   image: Joi.object({
     url: Joi.string().uri().optional(),
     publicId: Joi.string().optional(),

@@ -16,10 +16,21 @@ const axiosInstance = axios.create({
   },
 });
 
+const PUBLIC_AUTH_PATHS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/verify-otp',
+  '/auth/resend-otp',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/refresh',
+];
+
 // Request interceptor
 axiosInstance.interceptors.request.use(
   (config) => {
-    if (store) {
+    const isPublicAuth = PUBLIC_AUTH_PATHS.some((path) => config.url?.includes(path));
+    if (!isPublicAuth && store) {
       const state = store.getState();
       const token = state.auth?.token;
       if (token) {
@@ -36,21 +47,15 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     const originalRequest = error.config;
+    const isPublicAuth = PUBLIC_AUTH_PATHS.some((path) => originalRequest?.url?.includes(path));
 
-    // A 401 only means "your session expired" if this request actually carried a
-    // token in the first place. Public endpoints (login, register, verify-otp,
-    // forgot/reset-password) can legitimately return 401 for wrong password, wrong
-    // OTP, or an unverified account — those are user-facing validation errors, not
-    // session expiry, and must be left alone so the calling thunk's rejectWithValue
-    // can show the real message instead of the page silently bouncing to /login.
-    const hadAuthHeader = Boolean(originalRequest?.headers?.Authorization);
-
-    if (error.response?.status === 401 && hadAuthHeader && !originalRequest._retry) {
+    // Only handle 401 for authenticated endpoints (session expired)
+    // Never intercept 401 on login, register, verify-otp, etc.
+    if (error.response?.status === 401 && !isPublicAuth && !originalRequest?._retry) {
       originalRequest._retry = true;
       if (store) {
         store.dispatch(clearAuth());
       }
-      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

@@ -8,7 +8,7 @@ const productImageSchema = new mongoose.Schema({
   },
   publicId: {
     type: String,
-    required: true
+    default: () => `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
   },
   isPrimary: {
     type: Boolean,

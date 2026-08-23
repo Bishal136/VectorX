@@ -172,15 +172,18 @@ const Navbar = () => {
                           <Link to="/orders" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
                             Orders
                           </Link>
+                          <Link to="/become-seller" className="block px-4 py-2 text-sm text-indigo-600 font-medium hover:bg-indigo-50" onClick={() => setIsAccountOpen(false)}>
+                            Become a Seller
+                          </Link>
                         </>
                       )}
                       {user?.role === 'seller' && (
-                        <Link to="/seller/dashboard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
-                          Seller Dashboard
+                        <Link to="/seller/dashboard" className="block px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50" onClick={() => setIsAccountOpen(false)}>
+                          Seller Portal
                         </Link>
                       )}
                       {user?.role === 'admin' && (
-                        <Link to="/admin/dashboard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
+                        <Link to="/admin/dashboard" className="block px-4 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50" onClick={() => setIsAccountOpen(false)}>
                           Admin Panel
                         </Link>
                       )}

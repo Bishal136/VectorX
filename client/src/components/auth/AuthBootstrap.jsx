@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchCurrentUser } from '../../features/auth/authSlice';
+import { fetchCart } from '../../features/cart/cartSlice';
 
 const AuthBootstrap = ({ children }) => {
   const dispatch = useDispatch();
@@ -12,8 +13,11 @@ const AuthBootstrap = ({ children }) => {
     if (hasRun.current) return;
     hasRun.current = true;
 
-    if (token && !user) {
-      dispatch(fetchCurrentUser());
+    if (token) {
+      if (!user) {
+        dispatch(fetchCurrentUser());
+      }
+      dispatch(fetchCart());
     }
   }, [dispatch, token, user]);
 

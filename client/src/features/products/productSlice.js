@@ -254,11 +254,7 @@ const productSlice = createSlice({
 
       // ----- Fetch Products by Seller -----
       .addCase(fetchProductsBySeller.fulfilled, (state, action) => {
-        // We can store these in a separate key if needed, but for simplicity we'll replace items.
-        // However, this might conflict with the main product list. Better to store separately?
-        // We'll not store in items to avoid overwriting; we'll use a separate field or just return.
-        // For now, we'll just store in items but with a flag? We'll keep it simple: store in items.
-        state.items = action.payload;
+        state.items = action.payload?.products || (Array.isArray(action.payload) ? action.payload : []);
         state.error = null;
       })
       .addCase(fetchProductsBySeller.rejected, (state, action) => {
@@ -267,7 +263,7 @@ const productSlice = createSlice({
 
       // ----- Fetch Related Products -----
       .addCase(fetchRelatedProducts.fulfilled, (state, action) => {
-        state.relatedProducts = action.payload;
+        state.relatedProducts = action.payload?.products || (Array.isArray(action.payload) ? action.payload : []);
         state.error = null;
       })
       .addCase(fetchRelatedProducts.rejected, (state, action) => {
@@ -276,7 +272,7 @@ const productSlice = createSlice({
 
       // ----- Fetch Product Reviews -----
       .addCase(fetchProductReviews.fulfilled, (state, action) => {
-        state.reviews = action.payload; // might need pagination meta
+        state.reviews = action.payload?.reviews || (Array.isArray(action.payload) ? action.payload : []);
         state.error = null;
       })
       .addCase(fetchProductReviews.rejected, (state, action) => {
@@ -286,10 +282,11 @@ const productSlice = createSlice({
       // ----- Submit Review -----
       .addCase(submitReview.fulfilled, (state, action) => {
         // Add the new review to the reviews list
-        if (state.reviews) {
+        if (Array.isArray(state.reviews)) {
           state.reviews.unshift(action.payload);
+        } else {
+          state.reviews = [action.payload];
         }
-        // Update product rating if needed (but that's usually done by backend)
         state.error = null;
       })
       .addCase(submitReview.rejected, (state, action) => {

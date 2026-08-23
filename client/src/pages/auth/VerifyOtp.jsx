@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { verifyOtp } from '../../features/auth/authSlice';
+import axiosInstance from '../../services/axiosInstance';
 import Logo from '../../components/common/Logo';
 import AuthBrandPanel from '../../pages/auth/AuthBrandPanel';
 
@@ -16,14 +17,16 @@ const VerifyOtp = () => {
   const { status, error } = useSelector((state) => state.auth);
   const isLoading = status === 'loading';
 
-  // Arrives via navigate('/verify-otp', { state: { email } }) from Register.jsx.
-  // Falls back to an editable field if the page was opened directly (refresh, bookmark, etc).
-  const emailFromState = location.state?.email || '';
-  const [email, setEmail] = useState(emailFromState);
-  const emailLocked = Boolean(emailFromState);
+  // Arrives via state or query parameter (?email=...)
+  const searchParams = new URLSearchParams(location.search);
+  const initialEmail = location.state?.email || searchParams.get('email') || '';
+  const [email, setEmail] = useState(initialEmail);
+  const emailLocked = Boolean(location.state?.email);
 
   const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(''));
   const [formError, setFormError] = useState('');
+  const [resendSuccess, setResendSuccess] = useState('');
+  const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN);
   const inputRefs = useRef([]);
 
@@ -72,7 +75,8 @@ const VerifyOtp = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim()) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
       setFormError('Please enter your email.');
       return;
     }
@@ -81,8 +85,8 @@ const VerifyOtp = () => {
       return;
     }
     try {
-      await dispatch(verifyOtp({ email: email.trim(), otp: otpValue })).unwrap();
-      navigate('/login', { state: { justVerified: true } });
+      await dispatch(verifyOtp({ email: cleanEmail, otp: otpValue })).unwrap();
+      navigate('/login', { state: { justVerified: true, email: cleanEmail } });
     } catch {
       // rejected value is already captured in redux `error` state
       setOtp(Array(OTP_LENGTH).fill(''));
@@ -90,11 +94,25 @@ const VerifyOtp = () => {
     }
   };
 
-  const handleResend = () => {
-    if (cooldown > 0) return;
-    // NOTE: authRouterTest.json has no POST /auth/resend-otp route yet, so there's
-    // nothing to actually call here. Wire this up once that endpoint exists on the backend.
-    setCooldown(RESEND_COOLDOWN);
+  const handleResend = async () => {
+    if (cooldown > 0 || resending) return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setFormError('Please enter your email to resend OTP.');
+      return;
+    }
+    setResending(true);
+    setFormError('');
+    setResendSuccess('');
+    try {
+      await axiosInstance.post('/auth/resend-otp', { email: cleanEmail, type: 'verification' });
+      setResendSuccess('New verification code sent to your email.');
+      setCooldown(RESEND_COOLDOWN);
+    } catch (err) {
+      setFormError(err.response?.data?.message || 'Failed to resend verification code.');
+    } finally {
+      setResending(false);
+    }
   };
 
   return (
@@ -125,16 +143,21 @@ const VerifyOtp = () => {
               </div>
             )}
 
+            {resendSuccess && (
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+                {resendSuccess}
+              </div>
+            )}
+
             {!emailLocked && (
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-900 mb-1.5">
+                <label htmlFor="verify-email" className="block text-sm font-medium text-gray-900 mb-1.5">
                   Email
                 </label>
                 <input
-                  id="email"
+                  id="verify-email"
                   name="email"
                   type="email"
-                  autoComplete="email"
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => {
@@ -146,21 +169,24 @@ const VerifyOtp = () => {
               </div>
             )}
 
+            {/* 6-box OTP input */}
             <div>
-              <span className="block text-sm font-medium text-gray-900 mb-2">Verification code</span>
-              <div className="flex items-center justify-between gap-2" onPaste={handlePaste}>
+              <label className="block text-sm font-medium text-gray-900 mb-3">Verification Code</label>
+              <div className="flex justify-between gap-2" onPaste={handlePaste}>
                 {otp.map((digit, index) => (
                   <input
                     key={index}
-                    ref={(el) => (inputRefs.current[index] = el)}
+                    ref={(el) => {
+                      inputRefs.current[index] = el;
+                    }}
                     type="text"
                     inputMode="numeric"
                     maxLength={1}
                     value={digit}
                     onChange={(e) => handleOtpChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-11 h-13 sm:w-12 sm:h-14 rounded-xl border border-gray-300 text-center text-xl font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
-                    aria-label={`Digit ${index + 1} of ${OTP_LENGTH}`}
+                    className="w-12 h-14 text-center text-xl font-bold rounded-xl border border-gray-300 outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                    aria-label={`Digit ${index + 1}`}
                   />
                 ))}
               </div>
@@ -171,32 +197,37 @@ const VerifyOtp = () => {
               disabled={isLoading}
               className="w-full rounded-xl bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
             >
-              {isLoading ? 'Verifying…' : 'Verify account'}
+              {isLoading ? 'Verifying…' : 'Verify Email'}
             </button>
 
-            <p className="text-center text-sm text-gray-500">
-              Didn&apos;t get a code?{' '}
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={cooldown > 0}
-                className="font-semibold text-green-700 hover:text-green-800 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:text-gray-400"
-              >
-                {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
-              </button>
-            </p>
+            {/* Resend link */}
+            <div className="text-center text-sm text-gray-500">
+              Didn&apos;t receive a code?{' '}
+              {cooldown > 0 ? (
+                <span className="text-gray-400">Resend in {cooldown}s</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resending}
+                  className="font-semibold text-green-700 hover:text-green-800 disabled:opacity-50"
+                >
+                  {resending ? 'Sending…' : 'Resend code'}
+                </button>
+              )}
+            </div>
           </form>
 
           <p className="mt-8 text-center text-sm text-gray-500">
-            Wrong email?{' '}
-            <Link to="/register" className="font-semibold text-green-700 hover:text-green-800">
-              Go back
+            Already verified?{' '}
+            <Link to="/login" className="font-semibold text-green-700 hover:text-green-800">
+              Sign in
             </Link>
           </p>
         </div>
       </div>
 
-      <AuthBrandPanel tagline="Almost there — verify your email to start shopping or selling." />
+      <AuthBrandPanel tagline="Local products, doorstep delivery. Verify your email to get started." />
     </div>
   );
 };

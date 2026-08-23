@@ -8,7 +8,7 @@ export const registerSeller = createAsyncThunk(
   async (sellerData, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post('/sellers/register', sellerData);
-      return response.data.data; // { _id, shopName, user, isVerified, verificationStatus, ... }
+      return response.data.data?.seller || response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Seller registration failed');
     }
@@ -21,9 +21,11 @@ export const fetchSellerProfile = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get('/sellers/profile');
-      return response.data.data; // seller object
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch seller profile');
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to fetch seller profile'
+      );
     }
   }
 );
@@ -33,7 +35,7 @@ export const updateSellerProfile = createAsyncThunk(
   async (updateData, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.put('/sellers/profile', updateData);
-      return response.data.data; // updated seller object
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Profile update failed');
     }
@@ -46,7 +48,7 @@ export const fetchDashboardStats = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get('/sellers/dashboard');
-      return response.data.data; // { totalProducts, totalOrders, totalRevenue, pendingOrders, ... }
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch dashboard');
     }
@@ -55,25 +57,31 @@ export const fetchDashboardStats = createAsyncThunk(
 
 export const fetchEarnings = createAsyncThunk(
   'seller/fetchEarnings',
-  async (_, { rejectWithValue }) => {
+  async (period = 'month', { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.get('/sellers/earnings');
-      return response.data.data; // { totalEarnings, availableBalance, pendingBalance, ... }
+      const response = await axiosInstance.get(`/sellers/earnings?period=${period}`);
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch earnings');
     }
   }
 );
 
-// ----- Product Management (Seller's own products) -----
+// ----- Product Management -----
 export const fetchSellerProducts = createAsyncThunk(
   'seller/fetchProducts',
-  async ({ page = 1, limit = 20, status } = {}, { rejectWithValue }) => {
+  async ({ page = 1, limit = 20, search, category, isActive } = {}, { rejectWithValue }) => {
     try {
-      const params = new URLSearchParams({ page, limit });
-      if (status) params.append('status', status);
-      const response = await axiosInstance.get(`/sellers/products?${params}`);
-      return response.data.data; // array of products
+      const params = new URLSearchParams();
+      if (page) params.append('page', page);
+      if (limit) params.append('limit', limit);
+      if (search) params.append('search', search);
+      if (category) params.append('category', category);
+      if (isActive !== undefined && isActive !== null && isActive !== '') {
+        params.append('isActive', isActive);
+      }
+      const response = await axiosInstance.get(`/sellers/products?${params.toString()}`);
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch products');
     }
@@ -85,7 +93,7 @@ export const createSellerProduct = createAsyncThunk(
   async (productData, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post('/sellers/products', productData);
-      return response.data.data; // created product
+      return response.data.data?.product || response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create product');
     }
@@ -97,7 +105,7 @@ export const updateSellerProduct = createAsyncThunk(
   async ({ productId, productData }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.put(`/sellers/products/${productId}`, productData);
-      return response.data.data; // updated product
+      return response.data.data?.product || response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update product');
     }
@@ -116,15 +124,17 @@ export const deleteSellerProduct = createAsyncThunk(
   }
 );
 
-// ----- Order Management (Seller's incoming orders) -----
+// ----- Order Management -----
 export const fetchSellerOrders = createAsyncThunk(
   'seller/fetchOrders',
   async ({ status, page = 1, limit = 20 } = {}, { rejectWithValue }) => {
     try {
-      const params = new URLSearchParams({ page, limit });
-      if (status) params.append('status', status);
-      const response = await axiosInstance.get(`/sellers/orders?${params}`);
-      return response.data.data; // array of orders
+      const params = new URLSearchParams();
+      if (page) params.append('page', page);
+      if (limit) params.append('limit', limit);
+      if (status && status !== 'all') params.append('status', status);
+      const response = await axiosInstance.get(`/sellers/orders?${params.toString()}`);
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch orders');
     }
@@ -136,7 +146,7 @@ export const updateOrderStatus = createAsyncThunk(
   async ({ orderId, status }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.put(`/sellers/orders/${orderId}/status`, { status });
-      return response.data.data; // updated order
+      return response.data.data?.order || response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update order status');
     }
@@ -145,12 +155,25 @@ export const updateOrderStatus = createAsyncThunk(
 
 // ----- Initial State -----
 const initialState = {
-  profile: null,               // seller profile object
-  dashboardStats: null,        // { totalProducts, totalOrders, totalRevenue, pendingOrders }
-  earnings: null,              // { totalEarnings, availableBalance, pendingBalance }
-  products: [],                // list of seller's products
-  orders: [],                  // list of seller's orders
-  status: 'idle',              // 'idle' | 'loading' | 'succeeded' | 'failed'
+  profile: null,
+  dashboardStats: null,
+  earnings: null,
+  products: [],
+  productPagination: {
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+  },
+  orders: [],
+  orderPagination: {
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+  },
+  status: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  actionLoading: false,
   error: null,
 };
 
@@ -166,28 +189,27 @@ const sellerSlice = createSlice({
       state.products = [];
       state.orders = [];
       state.status = 'idle';
+      state.actionLoading = false;
       state.error = null;
     },
-    // Optimistic updates for product list (optional)
-    optimisticRemoveProduct: (state, action) => {
-      const productId = action.payload;
-      state.products = state.products.filter((p) => p._id !== productId);
+    clearSellerError: (state) => {
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
     builder
       // ----- Register -----
       .addCase(registerSeller.pending, (state) => {
-        state.status = 'loading';
+        state.actionLoading = true;
         state.error = null;
       })
       .addCase(registerSeller.fulfilled, (state, action) => {
-        state.status = 'succeeded';
+        state.actionLoading = false;
         state.profile = action.payload;
         state.error = null;
       })
       .addCase(registerSeller.rejected, (state, action) => {
-        state.status = 'failed';
+        state.actionLoading = false;
         state.error = action.payload;
       })
 
@@ -207,20 +229,32 @@ const sellerSlice = createSlice({
       })
 
       // ----- Update Profile -----
+      .addCase(updateSellerProfile.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
       .addCase(updateSellerProfile.fulfilled, (state, action) => {
+        state.actionLoading = false;
         state.profile = action.payload;
         state.error = null;
       })
       .addCase(updateSellerProfile.rejected, (state, action) => {
+        state.actionLoading = false;
         state.error = action.payload;
       })
 
       // ----- Dashboard -----
+      .addCase(fetchDashboardStats.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
       .addCase(fetchDashboardStats.fulfilled, (state, action) => {
+        state.status = 'succeeded';
         state.dashboardStats = action.payload;
         state.error = null;
       })
       .addCase(fetchDashboardStats.rejected, (state, action) => {
+        state.status = 'failed';
         state.error = action.payload;
       })
 
@@ -234,63 +268,136 @@ const sellerSlice = createSlice({
       })
 
       // ----- Products -----
+      .addCase(fetchSellerProducts.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
       .addCase(fetchSellerProducts.fulfilled, (state, action) => {
-        state.products = action.payload;
+        state.status = 'succeeded';
+        if (Array.isArray(action.payload)) {
+          state.products = action.payload;
+          state.productPagination = {
+            page: 1,
+            limit: action.payload.length || 20,
+            total: action.payload.length,
+            totalPages: 1,
+          };
+        } else if (action.payload?.products) {
+          state.products = action.payload.products;
+          if (action.payload.pagination) {
+            state.productPagination = action.payload.pagination;
+          }
+        } else {
+          state.products = [];
+        }
         state.error = null;
       })
       .addCase(fetchSellerProducts.rejected, (state, action) => {
+        state.status = 'failed';
         state.error = action.payload;
       })
+      .addCase(createSellerProduct.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
       .addCase(createSellerProduct.fulfilled, (state, action) => {
-        // Add new product to the list
-        state.products.unshift(action.payload);
+        state.actionLoading = false;
+        const newProd = action.payload;
+        if (newProd && newProd._id) {
+          state.products.unshift(newProd);
+          state.productPagination.total = (state.productPagination.total || 0) + 1;
+        }
         state.error = null;
       })
       .addCase(createSellerProduct.rejected, (state, action) => {
+        state.actionLoading = false;
         state.error = action.payload;
       })
+      .addCase(updateSellerProduct.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
       .addCase(updateSellerProduct.fulfilled, (state, action) => {
+        state.actionLoading = false;
         const updated = action.payload;
-        const index = state.products.findIndex((p) => p._id === updated._id);
-        if (index !== -1) {
-          state.products[index] = updated;
+        if (updated && updated._id) {
+          const index = state.products.findIndex((p) => p._id === updated._id);
+          if (index !== -1) {
+            state.products[index] = updated;
+          }
         }
         state.error = null;
       })
       .addCase(updateSellerProduct.rejected, (state, action) => {
+        state.actionLoading = false;
         state.error = action.payload;
       })
+      .addCase(deleteSellerProduct.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
       .addCase(deleteSellerProduct.fulfilled, (state, action) => {
+        state.actionLoading = false;
         const { productId } = action.payload;
         state.products = state.products.filter((p) => p._id !== productId);
+        state.productPagination.total = Math.max(0, (state.productPagination.total || 1) - 1);
         state.error = null;
       })
       .addCase(deleteSellerProduct.rejected, (state, action) => {
+        state.actionLoading = false;
         state.error = action.payload;
       })
 
       // ----- Orders -----
+      .addCase(fetchSellerOrders.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
       .addCase(fetchSellerOrders.fulfilled, (state, action) => {
-        state.orders = action.payload;
+        state.status = 'succeeded';
+        if (Array.isArray(action.payload)) {
+          state.orders = action.payload;
+          state.orderPagination = {
+            page: 1,
+            limit: action.payload.length || 20,
+            total: action.payload.length,
+            totalPages: 1,
+          };
+        } else if (action.payload?.orders) {
+          state.orders = action.payload.orders;
+          if (action.payload.pagination) {
+            state.orderPagination = action.payload.pagination;
+          }
+        } else {
+          state.orders = [];
+        }
         state.error = null;
       })
       .addCase(fetchSellerOrders.rejected, (state, action) => {
+        state.status = 'failed';
         state.error = action.payload;
       })
+      .addCase(updateOrderStatus.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
       .addCase(updateOrderStatus.fulfilled, (state, action) => {
+        state.actionLoading = false;
         const updated = action.payload;
-        const index = state.orders.findIndex((o) => o._id === updated._id);
-        if (index !== -1) {
-          state.orders[index] = updated;
+        if (updated && updated._id) {
+          const index = state.orders.findIndex((o) => o._id === updated._id);
+          if (index !== -1) {
+            state.orders[index] = { ...state.orders[index], ...updated };
+          }
         }
         state.error = null;
       })
       .addCase(updateOrderStatus.rejected, (state, action) => {
+        state.actionLoading = false;
         state.error = action.payload;
       });
   },
 });
 
-// ----- Export actions & reducer -----
-export const { clearSellerData, optimisticRemoveProduct } = sellerSlice.actions;
+export const { clearSellerData, clearSellerError } = sellerSlice.actions;
 export default sellerSlice.reducer;

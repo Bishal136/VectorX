@@ -7,7 +7,8 @@ const {
   getOrderById,
   cancelOrder,
   adminGetOrders,
-  adminUpdateOrderStatus
+  adminUpdateOrderStatus,
+  validateCoupon
 } = require('../controllers/order.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
 const { isUser, isAdmin } = require('../middlewares/role.middleware');
@@ -18,18 +19,24 @@ const Joi = require('joi');
 
 const createOrderSchema = Joi.object({
   shippingAddress: Joi.object({
-    label: Joi.string().optional(),
+    label: Joi.string().optional().allow(''),
     line1: Joi.string().required(),
     line2: Joi.string().optional().allow(''),
     city: Joi.string().required(),
-    state: Joi.string().optional(),
+    state: Joi.string().optional().allow(''),
     pincode: Joi.string().required(),
     coordinates: Joi.array().items(Joi.number()).length(2).optional(),
-    phone: Joi.string().optional()
+    phone: Joi.string().optional().allow('')
   }).required(),
-  paymentMethod: Joi.string().valid('stripe', 'paypal','WALLEMIX','COD').required(),
+  paymentMethod: Joi.string().valid('stripe', 'paypal', 'WALLEMIX', 'COD', 'email_money_transfer', 'crypto').default('COD'),
   couponCode: Joi.string().optional().allow(''),
-  notes: Joi.string().optional().allow('')
+  notes: Joi.string().optional().allow(''),
+  outOfStockAction: Joi.string().optional().allow(''),
+  referralSource: Joi.string().optional().allow(''),
+  items: Joi.array().items(Joi.object({
+    productId: Joi.string().required(),
+    quantity: Joi.number().integer().min(1).default(1)
+  })).optional()
 });
 
 const cancelOrderSchema = Joi.object({
@@ -41,6 +48,9 @@ const adminUpdateStatusSchema = Joi.object({
     'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'
   ).required()
 });
+
+// ===================== Public / Coupon Validation =====================
+router.post('/validate-coupon', validateCoupon);
 
 // ===================== Admin Routes =====================
 

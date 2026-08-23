@@ -3,9 +3,8 @@ const productService = require('../services/product.service');
 const geoService = require('../services/geo.service');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
-const { ORDER_STATUS } = require('../models/Order.model');
+const { Order, ORDER_STATUS } = require('../models/Order.model');
 const Product = require('../models/Product.model');
-const Order = require('../models/Order.model');
 const Category = require('../models/Category.model');
 const mongoose = require('mongoose');
 
@@ -373,13 +372,14 @@ const getRelatedProducts = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const limit = parseInt(req.query.limit, 10) || 6;
 
-  const product = await Product.findById(id);
+  const isObjectId = mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id);
+  const product = isObjectId ? await Product.findById(id) : await Product.findOne({ slug: id });
   if (!product) {
     throw new ApiError(404, 'Product not found');
   }
 
   const related = await Product.find({
-    _id: { $ne: id },
+    _id: { $ne: product._id },
     category: product.category,
     isActive: true,
     isApproved: true
@@ -510,8 +510,9 @@ const submitReview = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Rating must be between 1 and 5');
   }
 
-  // Check if product exists
-  const product = await Product.findById(id);
+  // Check if product exists (by ObjectId or slug)
+  const isObjectId = mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id);
+  const product = isObjectId ? await Product.findById(id) : await Product.findOne({ slug: id });
   if (!product) {
     throw new ApiError(404, 'Product not found');
   }
@@ -520,7 +521,7 @@ const submitReview = asyncHandler(async (req, res) => {
   const order = await Order.findOne({
     _id: orderId,
     userId: userId,
-    'items.productId': id,
+    'items.productId': product._id,
     status: ORDER_STATUS.DELIVERED
   });
 
@@ -604,11 +605,12 @@ const getProductReviews = asyncHandler(async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
   const sort = req.query.sort || 'newest'; // newest, helpful, highest, lowest
 
-  const product = await Product.findById(id)
-    .populate({
-      path: 'reviews.userId',
-      select: 'name'
-    });
+  const isObjectId = mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id);
+  const query = isObjectId ? Product.findById(id) : Product.findOne({ slug: id });
+  const product = await query.populate({
+    path: 'reviews.userId',
+    select: 'name'
+  });
 
   if (!product) {
     throw new ApiError(404, 'Product not found');
@@ -662,7 +664,8 @@ const reportReview = asyncHandler(async (req, res) => {
   const { productId, reviewId } = req.params;
   const userId = req.user.id;
 
-  const product = await Product.findById(productId);
+  const isObjectId = mongoose.Types.ObjectId.isValid(productId) && /^[0-9a-fA-F]{24}$/.test(productId);
+  const product = isObjectId ? await Product.findById(productId) : await Product.findOne({ slug: productId });
   if (!product) {
     throw new ApiError(404, 'Product not found');
   }
@@ -693,7 +696,8 @@ const reportReview = asyncHandler(async (req, res) => {
 const markReviewHelpful = asyncHandler(async (req, res) => {
   const { productId, reviewId } = req.params;
 
-  const product = await Product.findById(productId);
+  const isObjectId = mongoose.Types.ObjectId.isValid(productId) && /^[0-9a-fA-F]{24}$/.test(productId);
+  const product = isObjectId ? await Product.findById(productId) : await Product.findOne({ slug: productId });
   if (!product) {
     throw new ApiError(404, 'Product not found');
   }

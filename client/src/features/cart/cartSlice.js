@@ -33,9 +33,11 @@ export const addToCart = createAsyncThunk(
 // Update cart item quantity
 export const updateCartItem = createAsyncThunk(
   'cart/updateCartItem',
-  async ({ cartItemId, quantity }, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.put(`/users/cart/${cartItemId}`, { quantity });
+      const id = payload.cartItemId || payload.itemId || payload.productId;
+      const quantity = payload.quantity;
+      const response = await axiosInstance.put(`/users/cart/${id}`, { quantity });
       return response.data.data; // updated cart
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update cart');
@@ -43,12 +45,16 @@ export const updateCartItem = createAsyncThunk(
   }
 );
 
+// Alias for backwards compatibility / alternate naming
+export const updateQuantity = updateCartItem;
+
 // Remove an item from cart
 export const removeFromCart = createAsyncThunk(
   'cart/removeFromCart',
-  async (cartItemId, { rejectWithValue }) => {
+  async (arg, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.delete(`/users/cart/${cartItemId}`);
+      const id = typeof arg === 'object' && arg !== null ? arg.cartItemId || arg.itemId || arg.productId : arg;
+      const response = await axiosInstance.delete(`/users/cart/${id}`);
       return response.data.data; // updated cart
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to remove from cart');

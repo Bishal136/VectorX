@@ -1,4 +1,5 @@
 // src/controllers/order.controller.js
+const mongoose = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const { Order, ORDER_STATUS, PAYMENT_STATUS } = require('../models/Order.model');
@@ -6,7 +7,76 @@ const Cart = require('../models/Cart.model');
 const Product = require('../models/Product.model');
 const Seller = require('../models/Seller.model');
 const User = require('../models/User.model');
+const Setting = require('../models/Setting.model');
 const { v4: uuidv4 } = require('uuid');
+
+/**
+ * Validate a coupon code against admin platform settings
+ * POST /api/orders/validate-coupon
+ * @body { code, subtotal }
+ */
+const validateCoupon = asyncHandler(async (req, res) => {
+  const { code, subtotal = 0 } = req.body;
+  const normalizedCode = (code || '').trim().toUpperCase();
+
+  if (!normalizedCode) {
+    throw new ApiError(400, 'Coupon code is required');
+  }
+
+  const settings = await Setting.getSettings();
+  const coupons = settings.couponCodes || [];
+
+  const coupon = coupons.find(
+    (c) => c.code && c.code.trim().toUpperCase() === normalizedCode
+  );
+
+  if (!coupon) {
+    throw new ApiError(400, `Coupon "${normalizedCode}" is invalid`);
+  }
+
+  if (coupon.isActive === false) {
+    throw new ApiError(400, `Coupon "${normalizedCode}" is no longer active`);
+  }
+
+  if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+    throw new ApiError(400, `Coupon "${normalizedCode}" has expired`);
+  }
+
+  if (
+    coupon.usageLimit !== null &&
+    coupon.usageLimit !== undefined &&
+    coupon.usedCount >= coupon.usageLimit
+  ) {
+    throw new ApiError(400, `Coupon "${normalizedCode}" usage limit has been reached`);
+  }
+
+  const numericSubtotal = Number(subtotal) || 0;
+  if (coupon.minOrderAmount > 0 && numericSubtotal < coupon.minOrderAmount) {
+    throw new ApiError(
+      400,
+      `Minimum order amount for coupon "${normalizedCode}" is $${coupon.minOrderAmount.toFixed(2)}`
+    );
+  }
+
+  let discountAmount = 0;
+  if (coupon.discountType === 'percentage') {
+    discountAmount = (numericSubtotal * (Number(coupon.discount) || 0)) / 100;
+  } else {
+    discountAmount = Math.min(numericSubtotal, Number(coupon.discount) || 0);
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      code: coupon.code,
+      discount: coupon.discount,
+      discountType: coupon.discountType || 'percentage',
+      discountAmount: Number(discountAmount.toFixed(2)),
+      minOrderAmount: coupon.minOrderAmount || 0,
+    },
+    message: `Coupon ${coupon.code} applied successfully!`
+  });
+});
 
 /**
  * Create orders from cart (checkout)
@@ -15,77 +85,143 @@ const { v4: uuidv4 } = require('uuid');
  */
 const createOrders = asyncHandler(async (req, res) => {
   const userId = req.user.id;
+  const { 
+    shippingAddress, 
+    paymentMethod = 'COD', 
+    couponCode, 
+    notes,
+    items: customItems 
+  } = req.body;
 
-  // Get user's cart
-  const cart = await Cart.findOne({ userId }).populate('items.productId');
-  if (!cart || cart.items.length === 0) {
-    throw new ApiError(400, 'Cart is empty');
+  let checkoutItems = [];
+
+  if (customItems && customItems.length > 0) {
+    for (const cItem of customItems) {
+      const product = await Product.findById(cItem.productId);
+      if (!product) {
+        throw new ApiError(404, `Product not found`);
+      }
+      const qty = Number(cItem.quantity) || 1;
+      if (product.stock < qty) {
+        throw new ApiError(400, `Insufficient stock for ${product.name}`);
+      }
+      checkoutItems.push({
+        productId: product,
+        quantity: qty,
+        price: Number(cItem.price ?? product.price ?? 0)
+      });
+    }
+  } else {
+    // Get user's cart
+    const cart = await Cart.findOne({ userId }).populate('items.productId');
+    if (!cart || cart.items.length === 0) {
+      throw new ApiError(400, 'Cart is empty');
+    }
+    checkoutItems = cart.items;
   }
 
-  const { shippingAddress, paymentMethod, couponCode, notes } = req.body;
-
   // Validate payment method
-  const validPaymentMethods = ['stripe', 'paypal','WALLEMIX','COD'];
+  const validPaymentMethods = ['stripe', 'paypal', 'WALLEMIX', 'COD', 'email_money_transfer', 'crypto'];
   if (!validPaymentMethods.includes(paymentMethod)) {
     throw new ApiError(400, 'Invalid payment method');
   }
 
+  // Check coupon validity if provided
+  let validCouponObj = null;
+  if (couponCode) {
+    const settings = await Setting.getSettings();
+    const normalizedCode = couponCode.trim().toUpperCase();
+    const foundCoupon = (settings.couponCodes || []).find(
+      (c) => c.code && c.code.trim().toUpperCase() === normalizedCode && c.isActive !== false
+    );
+    if (foundCoupon) {
+      validCouponObj = foundCoupon;
+      foundCoupon.usedCount = (foundCoupon.usedCount || 0) + 1;
+      await settings.save();
+    }
+  }
+
   // Group cart items by sellerId
   const itemsBySeller = {};
-  for (const item of cart.items) {
+  for (const item of checkoutItems) {
     const product = item.productId;
     if (!product) continue;
-    const sellerId = product.sellerId.toString();
+    const rawSeller = product.sellerId || product.seller || userId;
+    const sellerId = rawSeller.toString();
+
     if (!itemsBySeller[sellerId]) {
       itemsBySeller[sellerId] = [];
     }
-    // Check stock
+
     if (product.stock < item.quantity) {
       throw new ApiError(400, `Insufficient stock for ${product.name}`);
     }
+
+    let catId = product.category;
+    if (catId && typeof catId === 'object' && catId._id) {
+      catId = catId._id;
+    }
+    if (!mongoose.Types.ObjectId.isValid(catId)) {
+      catId = undefined;
+    }
+
+    const formattedImages = Array.isArray(product.images)
+      ? product.images.map((img) =>
+          typeof img === 'string' ? { url: img } : { url: img?.url || '' }
+        )
+      : [];
+
     itemsBySeller[sellerId].push({
       productId: product._id,
       name: product.name,
-      price: product.price,
+      price: item.price || product.price,
       quantity: item.quantity,
       productSnapshot: {
-        images: product.images,
-        description: product.description,
-        category: product.category
+        images: formattedImages,
+        description: product.description || '',
+        category: catId
       }
     });
   }
 
   // Create a checkout session ID for grouping
   const checkoutSessionId = uuidv4();
-
-  // Fetch seller details for each seller
   const sellerIds = Object.keys(itemsBySeller);
-  const sellers = await Seller.find({ _id: { $in: sellerIds } });
-
-  // Prepare order documents
   const orderDocs = [];
   const totalAmounts = {};
 
   for (const sellerId of sellerIds) {
     const items = itemsBySeller[sellerId];
-    const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-    // Get seller commission rate (from settings or global)
-    // For MVP, we'll use a default commission rate from env or setting
-    const commissionRate = parseFloat(process.env.DEFAULT_COMMISSION_RATE) || 5; // percentage
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const commissionRate = parseFloat(process.env.DEFAULT_COMMISSION_RATE) || 5;
     const commissionAmount = (subtotal * commissionRate) / 100;
+    const shippingCharge = subtotal >= 100 ? 0 : 50;
+
+    let discount = 0;
+    if (validCouponObj) {
+      if (validCouponObj.discountType === 'percentage') {
+        discount = (subtotal * (Number(validCouponObj.discount) || 0)) / 100;
+      } else {
+        discount = Math.min(subtotal, Number(validCouponObj.discount) || 0);
+      }
+    }
+    discount = Number(discount.toFixed(2));
+    const totalAmount = Math.max(0, Number((subtotal - discount + shippingCharge).toFixed(2)));
+
+    const validSellerId = mongoose.Types.ObjectId.isValid(sellerId)
+      ? sellerId
+      : userId;
 
     const order = new Order({
       userId,
-      sellerId,
+      sellerId: validSellerId,
       items,
       subtotal,
-      shippingCharge: 0, // We can calculate later
+      shippingCharge,
       tax: 0,
-      discount: 0,
-      couponCode: couponCode || null,
-      totalAmount: subtotal, // will be recalculated on save
+      discount,
+      couponCode: validCouponObj ? validCouponObj.code : (couponCode || null),
+      totalAmount,
       shippingAddress,
       paymentMethod,
       paymentStatus: PAYMENT_STATUS.PENDING,
@@ -96,29 +232,31 @@ const createOrders = asyncHandler(async (req, res) => {
       status: ORDER_STATUS.PENDING
     });
 
-    // Save order (pre-save middleware calculates total)
     await order.save();
     orderDocs.push(order);
     totalAmounts[sellerId] = order.totalAmount;
   }
 
-  // Clear the cart after orders created
-  await Cart.findOneAndDelete({ userId });
+  // Clear or remove ordered items from cart
+  if (customItems && customItems.length > 0) {
+    const orderedProductIds = customItems.map((c) => c.productId.toString());
+    await Cart.findOneAndUpdate(
+      { userId },
+      { $pull: { items: { productId: { $in: orderedProductIds } } } }
+    );
+  } else {
+    await Cart.findOneAndDelete({ userId });
+  }
 
-  // Prepare response: order list and total amount for payment
   const totalOrderAmount = Object.values(totalAmounts).reduce((a, b) => a + b, 0);
-
-  // TODO: Integrate payment gateway (Stripe/PayPal) - will be done later
-  // For now, we just return the orders and payment intent placeholder
 
   res.status(201).json({
     success: true,
     data: {
       orders: orderDocs,
       checkoutSessionId,
-      totalAmount: totalOrderAmount,
-      paymentMethod,
-      // paymentIntent: { clientSecret: '...' } // will be added after payment integration
+      totalAmount: Number(totalOrderAmount.toFixed(2)),
+      paymentMethod
     },
     message: 'Orders created successfully. Proceed to payment.'
   });
@@ -302,5 +440,6 @@ module.exports = {
   getOrderById,
   cancelOrder,
   adminGetOrders,
-  adminUpdateOrderStatus
+  adminUpdateOrderStatus,
+  validateCoupon
 };

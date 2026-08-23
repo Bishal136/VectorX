@@ -42,7 +42,16 @@ const GoogleCallback = () => {
 
     dispatch(handleGoogleCallback({ accessToken, refreshToken, user }))
       .unwrap()
-      .then(() => navigate('/', { replace: true }))
+      .then((data) => {
+        const role = data?.user?.role || user?.role;
+        if (role === 'seller') {
+          navigate('/seller/dashboard', { replace: true });
+        } else if (role === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
+        } else {
+          navigate('/', { replace: true });
+        }
+      })
       .catch(() => navigate('/login?error=google-auth-failed', { replace: true }));
   }, [dispatch, navigate, searchParams]);
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Page404 = () => {
   return (
@@ -27,12 +28,12 @@ const Page404 = () => {
               <p className="text-gray-500 mb-6">
                 The page you are looking for is not available!
               </p>
-              <a 
-                href="/" 
+              <Link 
+                to="/" 
                 className="inline-block px-6 py-2.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors duration-200"
               >
                 Go to Home
-              </a>
+              </Link>
             </div>
 
           </div>

@@ -365,21 +365,22 @@ const addWishlist = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'User not found');
   }
 
-  // Check if product exists
-  const product = await Product.findById(productId);
+  // Check if product exists (by ObjectId or slug)
+  const isObjectId = mongoose.Types.ObjectId.isValid(productId) && /^[0-9a-fA-F]{24}$/.test(productId);
+  const product = isObjectId ? await Product.findById(productId) : await Product.findOne({ slug: productId });
   if (!product) {
     throw new ApiError(404, 'Product not found');
   }
 
   // Check if already in wishlist
-  if (user.wishlist.includes(productId)) {
+  if (user.wishlist.some(w => w.toString() === product._id.toString())) {
     return res.status(400).json({
       success: false,
       message: 'Product already in wishlist'
     });
   }
 
-  user.wishlist.push(productId);
+  user.wishlist.push(product._id);
   await user.save();
 
   // Populate the wishlist for response
@@ -403,7 +404,14 @@ const removeWishlist = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'User not found');
   }
 
-  const index = user.wishlist.indexOf(productId);
+  const isObjectId = mongoose.Types.ObjectId.isValid(productId) && /^[0-9a-fA-F]{24}$/.test(productId);
+  let resolvedId = productId;
+  if (!isObjectId) {
+    const product = await Product.findOne({ slug: productId });
+    if (product) resolvedId = product._id.toString();
+  }
+
+  const index = user.wishlist.findIndex(w => w.toString() === resolvedId.toString());
   if (index === -1) {
     throw new ApiError(404, 'Product not in wishlist');
   }
@@ -428,7 +436,8 @@ const removeWishlist = asyncHandler(async (req, res) => {
 // @access  Private
 const getCart = asyncHandler(async (req, res) => {
   let cart = await Cart.findOne({ userId: req.user.id })
-    .populate('items.productId', 'name price images stock location');
+    .populate('items.productId', 'name price comparePrice images stock location slug')
+    .populate('items.sellerId', 'shopName isVerified');
 
   if (!cart) {
     cart = await Cart.create({
@@ -454,9 +463,10 @@ const addToCart = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Product ID is required');
   }
 
-  // Check product exists and is active
+  // Check product exists and is active (support both ObjectId and slug)
+  const isObjectId = mongoose.Types.ObjectId.isValid(productId) && /^[0-9a-fA-F]{24}$/.test(productId);
   const product = await Product.findOne({
-    _id: productId,
+    ...(isObjectId ? { _id: productId } : { slug: productId }),
     isActive: true
   });
 
@@ -479,9 +489,9 @@ const addToCart = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if product already in cart
+  // Check if product already in cart (matching on product._id)
   const existingItem = cart.items.find(item => 
-    item.productId.toString() === productId
+    item.productId.toString() === product._id.toString()
   );
 
   if (existingItem) {
@@ -495,7 +505,7 @@ const addToCart = asyncHandler(async (req, res) => {
   } else {
     // Add new item
     cart.items.push({
-      productId,
+      productId: product._id,
       quantity,
       price: product.price,
       sellerId: product.sellerId
@@ -506,7 +516,8 @@ const addToCart = asyncHandler(async (req, res) => {
   cart.total = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   await cart.save();
 
-  await cart.populate('items.productId', 'name price images stock');
+  await cart.populate('items.productId', 'name price comparePrice images stock location slug');
+  await cart.populate('items.sellerId', 'shopName isVerified');
 
   res.json({
     success: true,
@@ -531,17 +542,18 @@ const updateCartItem = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Cart not found');
   }
 
-  const item = cart.items.id(itemId);
+  // Find item by cart subdocument _id or productId
+  const item = cart.items.id(itemId) || cart.items.find(i => (i.productId?._id || i.productId)?.toString() === itemId.toString());
   if (!item) {
     throw new ApiError(404, 'Item not found in cart');
   }
 
   if (quantity === 0) {
     // Remove item if quantity is 0
-    cart.items.pull(itemId);
+    cart.items.pull(item._id);
   } else {
     // Check stock
-    const product = await Product.findById(item.productId);
+    const product = await Product.findById(item.productId?._id || item.productId);
     if (!product || !product.isActive) {
       throw new ApiError(404, 'Product no longer available');
     }
@@ -555,7 +567,8 @@ const updateCartItem = asyncHandler(async (req, res) => {
   cart.total = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   await cart.save();
 
-  await cart.populate('items.productId', 'name price images stock');
+  await cart.populate('items.productId', 'name price comparePrice images stock location slug');
+  await cart.populate('items.sellerId', 'shopName isVerified');
 
   res.json({
     success: true,
@@ -575,18 +588,20 @@ const removeFromCart = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Cart not found');
   }
 
-  const item = cart.items.id(itemId);
+  // Find item by cart subdocument _id or productId
+  const item = cart.items.id(itemId) || cart.items.find(i => (i.productId?._id || i.productId)?.toString() === itemId.toString());
   if (!item) {
     throw new ApiError(404, 'Item not found in cart');
   }
 
-  cart.items.pull(itemId);
+  cart.items.pull(item._id);
   
   // Recalculate total
   cart.total = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   await cart.save();
 
-  await cart.populate('items.productId', 'name price images stock');
+  await cart.populate('items.productId', 'name price comparePrice images stock location slug');
+  await cart.populate('items.sellerId', 'shopName isVerified');
 
   res.json({
     success: true,

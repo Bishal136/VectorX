@@ -4,16 +4,17 @@ import axiosInstance from '../../services/axiosInstance';
 
 // ----- Async Thunks (User-facing) -----
 
-// Create an order from the cart
+// Create an order (full cart or selected items)
 export const createOrder = createAsyncThunk(
   'order/createOrder',
-  async ({ shippingAddress, paymentMethod, couponCode, notes }, { rejectWithValue }) => {
+  async ({ shippingAddress, paymentMethod, couponCode, notes, items }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post('/orders', {
         shippingAddress,
         paymentMethod,
         couponCode,
         notes,
+        ...(items && items.length > 0 ? { items } : {})
       });
       return response.data.data; // { orders: [], checkoutSessionId, totalAmount }
     } catch (error) {

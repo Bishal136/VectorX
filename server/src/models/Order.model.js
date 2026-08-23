@@ -20,7 +20,11 @@ const PAYMENT_STATUS = {
 
 const PAYMENT_METHODS = {
   WALLEMIX: 'WALLEMIX',
-  COD: 'COD'
+  COD: 'COD',
+  STRIPE: 'stripe',
+  PAYPAL: 'paypal',
+  EMAIL_MONEY_TRANSFER: 'email_money_transfer',
+  CRYPTO: 'crypto'
 };
 
 const orderItemSchema = new mongoose.Schema({

@@ -115,21 +115,19 @@ export const fetchWishlist = createAsyncThunk(
 // Toggle wishlist (add/remove)
 export const toggleWishlist = createAsyncThunk(
   'user/toggleWishlist',
-  async (productId, { rejectWithValue }) => {
+  async (productId, { getState, rejectWithValue }) => {
     try {
-      // We'll try to add; if already exists, the API might return 400,
-      // but we can handle by removing. However the API in Postman shows:
-      // POST /api/users/wishlist/:productId (add)
-      // DELETE /api/users/wishlist/:productId (remove)
-      // We need to know if it's already in wishlist. Usually we check local state.
-      // We'll attempt to add; if it fails with "already in wishlist", we can remove.
-      // But simpler: we can call a generic "toggle" endpoint if exists, but it's not.
-      // So we'll check if product is already in wishlist in component and call add or delete accordingly.
-      // However, we can still use a single thunk that decides based on current state.
-      // We'll implement separate actions for add/remove, but we'll combine into one "toggle" that accepts an action type.
-      // To keep it simple, we'll use two separate thunks: addToWishlist and removeFromWishlist.
-      // We'll also provide a combined toggle that uses the current state.
-      // Let's create addToWishlist and removeFromWishlist.
+      const state = getState();
+      const wishlist = state.user?.wishlist || [];
+      const isInWishlist = wishlist.some(
+        (item) => (typeof item === 'string' ? item : item?._id || item?.id) === productId
+      );
+
+      const response = isInWishlist
+        ? await axiosInstance.delete(`/users/wishlist/${productId}`)
+        : await axiosInstance.post(`/users/wishlist/${productId}`);
+
+      return response.data.data; // updated wishlist array
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Wishlist toggle failed');
     }
@@ -280,6 +278,13 @@ const userSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchWishlist.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+      .addCase(toggleWishlist.fulfilled, (state, action) => {
+        state.wishlist = action.payload;
+        state.error = null;
+      })
+      .addCase(toggleWishlist.rejected, (state, action) => {
         state.error = action.payload;
       })
       .addCase(addToWishlist.fulfilled, (state, action) => {

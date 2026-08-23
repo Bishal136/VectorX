@@ -13,6 +13,8 @@ const { sendOTP, verifyOTP } = require('../services/otp.service');
 // @access  Public
 const register = asyncHandler(async (req, res) => {
   const { name, email, password, phone, role } = req.body;
+  const normalizedEmail = email ? email.trim().toLowerCase() : '';
+  const normalizedPhone = phone ? phone.trim() : undefined;
 
   // Validate role - only user and seller can self-register
   if (role && !['user', 'seller'].includes(role)) {
@@ -23,8 +25,11 @@ const register = asyncHandler(async (req, res) => {
   }
 
   // Check if user exists
+  const orConditions = [{ email: normalizedEmail }];
+  if (normalizedPhone) orConditions.push({ phone: normalizedPhone });
+
   const userExists = await User.findOne({
-    $or: [{ email }, { phone }]
+    $or: orConditions
   });
 
   if (userExists) {
@@ -36,10 +41,10 @@ const register = asyncHandler(async (req, res) => {
 
   // Create user
   const user = await User.create({
-    name,
-    email,
+    name: name ? name.trim() : name,
+    email: normalizedEmail,
     password,
-    phone,
+    phone: normalizedPhone,
     role: role || 'user'
   });
 
@@ -49,7 +54,7 @@ const register = asyncHandler(async (req, res) => {
     try {
       sellerProfile = await Seller.create({
         user: user._id,
-        shopName: `${name}'s Shop`,
+        shopName: `${name || 'Merchant'}'s Shop`,
         shopAddress: {
           line1: 'Please update your shop address',
           city: 'Unknown',
@@ -69,7 +74,7 @@ const register = asyncHandler(async (req, res) => {
   }
 
   // Generate OTP
-  await sendOTP(email);
+  await sendOTP(normalizedEmail);
 
   const responseData = {
     id: user._id,
@@ -103,9 +108,10 @@ const register = asyncHandler(async (req, res) => {
 // @access  Public
 const verifyOTPController = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
+  const normalizedEmail = email ? email.trim().toLowerCase() : '';
 
   // Verify OTP from database
-  const result = await verifyOTP(email, otp, 'verification');
+  const result = await verifyOTP(normalizedEmail, otp, 'verification');
 
   if (!result.valid) {
     return res.status(400).json({
@@ -115,7 +121,7 @@ const verifyOTPController = asyncHandler(async (req, res) => {
   }
 
   // Find and verify user
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: normalizedEmail });
   if (!user) {
     return res.status(404).json({
       success: false,
@@ -138,6 +144,13 @@ const verifyOTPController = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message: 'Email verified successfully. You can now login.',
+    data: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified
+    },
     ...(sellerWarning && { warning: sellerWarning })
   });
 });
@@ -147,9 +160,10 @@ const verifyOTPController = asyncHandler(async (req, res) => {
 // @access  Public
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
+  const normalizedEmail = email ? email.trim().toLowerCase() : '';
 
   // Get user with password field
-  const user = await User.findOne({ email }).select('+password');
+  const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
   if (!user) {
     return res.status(401).json({
@@ -371,15 +385,16 @@ const logout = asyncHandler(async (req, res) => {
 // @access  Public
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
+  const normalizedEmail = email ? email.trim().toLowerCase() : '';
 
-  if (!email) {
+  if (!normalizedEmail) {
     return res.status(400).json({
       success: false,
       message: 'Email is required'
     });
   }
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: normalizedEmail });
   if (!user) {
     return res.status(200).json({
       success: true,
@@ -394,7 +409,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
     });
   }
 
-  const result = await sendOTP(email, 'password_reset');
+  const result = await sendOTP(normalizedEmail, 'password_reset');
 
   if (!result.success) {
     return res.status(500).json({
@@ -414,8 +429,9 @@ const forgotPassword = asyncHandler(async (req, res) => {
 // @access  Public
 const resetPassword = asyncHandler(async (req, res) => {
   const { email, otp, newPassword, confirmPassword } = req.body;
+  const normalizedEmail = email ? email.trim().toLowerCase() : '';
 
-  if (!email || !otp || !newPassword) {
+  if (!normalizedEmail || !otp || !newPassword) {
     return res.status(400).json({
       success: false,
       message: 'Email, OTP, and new password are required'
@@ -436,7 +452,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     });
   }
 
-  const result = await verifyOTP(email, otp, 'password_reset');
+  const result = await verifyOTP(normalizedEmail, otp, 'password_reset');
 
   if (!result.valid) {
     return res.status(400).json({
@@ -445,7 +461,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     });
   }
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: normalizedEmail });
   if (!user) {
     return res.status(404).json({
       success: false,
@@ -476,8 +492,9 @@ const resetPassword = asyncHandler(async (req, res) => {
 // @access  Public
 const resendOTP = asyncHandler(async (req, res) => {
   const { email, type = 'verification' } = req.body;
+  const normalizedEmail = email ? email.trim().toLowerCase() : '';
 
-  if (!email) {
+  if (!normalizedEmail) {
     return res.status(400).json({
       success: false,
       message: 'Email is required'
@@ -485,7 +502,7 @@ const resendOTP = asyncHandler(async (req, res) => {
   }
 
   if (type === 'verification') {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -500,7 +517,7 @@ const resendOTP = asyncHandler(async (req, res) => {
     }
   }
 
-  const result = await sendOTP(email, type);
+  const result = await sendOTP(normalizedEmail, type);
 
   if (!result.success) {
     return res.status(500).json({
@@ -522,23 +539,33 @@ const resendOTP = asyncHandler(async (req, res) => {
 // @access  Public (but should be protected in production)
 const seedAdmin = asyncHandler(async (req, res) => {
   const { secret } = req.body;
+  const validSecret = process.env.ADMIN_SEED_SECRET || 'your-seed-secret';
 
-  if (secret !== process.env.ADMIN_SEED_SECRET) {
+  if (secret !== validSecret) {
     return res.status(401).json({
       success: false,
       message: 'Invalid seed secret'
     });
   }
 
-  const existingAdmin = await User.findOne({ role: 'admin' });
-  if (existingAdmin) {
-    return res.status(400).json({
-      success: false,
-      message: 'Admin account already exists'
+  let admin = await User.findOne({ role: 'admin' });
+  if (admin) {
+    admin.password = process.env.ADMIN_DEFAULT_PASSWORD || 'admin123';
+    admin.isVerified = true;
+    await admin.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Admin account verified and seeded successfully',
+      data: {
+        id: admin._id,
+        email: admin.email,
+        role: admin.role
+      }
     });
   }
 
-  const admin = await User.create({
+  admin = await User.create({
     name: 'Admin',
     email: 'admin@vectorx.com',
     password: process.env.ADMIN_DEFAULT_PASSWORD || 'admin123',

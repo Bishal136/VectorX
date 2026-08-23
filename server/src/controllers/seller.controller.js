@@ -81,20 +81,38 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Seller profile not found');
   }
 
+  // If seller is not yet approved, return zeroed stats with verification info
   if (seller.verificationStatus !== 'approved') {
-    throw new ApiError(403, 'Seller account not verified');
+    return res.json({
+      success: true,
+      data: {
+        totalOrders: 0,
+        totalRevenue: 0,
+        pendingOrders: 0,
+        totalProducts: 0,
+        topProducts: [],
+        lowStockProducts: [],
+        recentOrders: [],
+        verificationStatus: seller.verificationStatus,
+        isVerified: false
+      }
+    });
   }
 
   const sellerId = seller._id;
 
-  // Get orders
-  const orders = await Order.find({ sellerId });
+  // Get orders sorted newest first
+  const orders = await Order.find({ sellerId })
+    .sort({ createdAt: -1 })
+    .populate('userId', 'name email phone')
+    .lean();
+
   const totalOrders = orders.length;
 
-  // Calculate revenue
+  // Calculate revenue from non-cancelled/refunded orders
   const totalRevenue = orders
     .filter(o => o.status !== 'Cancelled' && o.status !== 'Refunded')
-    .reduce((sum, o) => sum + o.totalAmount, 0);
+    .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
   // Get pending orders count
   const pendingOrders = orders.filter(o =>
@@ -104,18 +122,18 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   // Get top products
   const productSales = {};
   orders.forEach(order => {
-    order.items.forEach(item => {
-      const productId = item.productId.toString();
+    (order.items || []).forEach(item => {
+      const productId = item.productId ? item.productId.toString() : (item.name || 'item');
       if (!productSales[productId]) {
         productSales[productId] = {
           productId,
-          name: item.name,
+          name: item.name || 'Product',
           quantity: 0,
           revenue: 0
         };
       }
-      productSales[productId].quantity += item.quantity;
-      productSales[productId].revenue += item.price * item.quantity;
+      productSales[productId].quantity += (item.quantity || 1);
+      productSales[productId].revenue += (item.price || 0) * (item.quantity || 1);
     });
   });
 
@@ -130,7 +148,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   const lowStockProducts = await Product.find({
     sellerId,
     $expr: { $lte: ['$stock', '$lowStockThreshold'] }
-  }).limit(10);
+  }).limit(10).lean();
 
   res.json({
     success: true,
@@ -141,7 +159,9 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       totalProducts,
       topProducts,
       lowStockProducts,
-      recentOrders: orders.slice(0, 10)
+      recentOrders: orders.slice(0, 10),
+      verificationStatus: seller.verificationStatus,
+      isVerified: true
     }
   });
 });
@@ -204,15 +224,10 @@ const createProduct = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Seller profile not found');
   }
 
-  if (seller.verificationStatus !== 'approved') {
-    throw new ApiError(403, 'Seller account not verified');
+  if (seller.verificationStatus !== 'approved' && !seller.isVerified) {
+    throw new ApiError(403, 'Seller account not verified. Please wait for admin approval.');
   }
 
-  const productData = {
-    ...req.body,
-    sellerId: seller._id,
-    location: seller.location // Inherit seller's location
-  };
   const product = await productService.createProduct(req.user.id, req.body);
 
   res.status(201).json({
@@ -243,19 +258,17 @@ const updateProduct = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Product not found or unauthorized');
   }
 
-  // Don't allow changing sellerId or location
+  // Don't allow changing sellerId or location directly
   delete req.body.sellerId;
   delete req.body.location;
 
-  const updatedProduct = await Product.findByIdAndUpdate(
-    id,
-    req.body,
-    { new: true, runValidators: true }
-  );
+  Object.assign(product, req.body);
+  await product.save();
+  await product.populate('category', 'name slug');
 
   res.json({
     success: true,
-    data: updatedProduct
+    data: product
   });
 });
 
@@ -300,7 +313,7 @@ const getSellerOrders = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const filter = { sellerId: seller._id };
-  if (status) {
+  if (status && status !== 'all') {
     filter.status = status;
   }
 
@@ -355,7 +368,6 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Order not found or unauthorized');
   }
 
-  // Prevent invalid status transitions (optional but recommended)
   const currentStatus = order.status;
   const transitions = {
     'Pending': ['Processing', 'Cancelled'],
@@ -372,8 +384,8 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   order.status = status;
   await order.save();
-
-  // TODO: Trigger email notification for buyer
+  await order.populate('userId', 'name email phone');
+  await order.populate('items.productId', 'name images');
 
   res.json({
     success: true,
@@ -412,7 +424,7 @@ const getSellerProfile = asyncHandler(async (req, res) => {
       data: {
         currentRole: user.role,
         needsRegistration: true,
-        registrationEndpoint: '/api/seller/register'
+        registrationEndpoint: '/api/sellers/register'
       }
     });
   }
@@ -428,32 +440,8 @@ const getSellerProfile = asyncHandler(async (req, res) => {
       data: {
         userRole: user.role,
         needsRegistration: true,
-        registrationEndpoint: '/api/seller/register',
+        registrationEndpoint: '/api/sellers/register',
         note: 'Your user account has role "seller" but the seller profile is missing. Please register as a seller to create your profile.'
-      }
-    });
-  }
-
-  // Check verification status
-  if (seller.verificationStatus === 'pending') {
-    return res.status(403).json({
-      success: false,
-      message: 'Your seller account is pending verification. Please wait for admin approval.',
-      data: {
-        verificationStatus: 'pending',
-        estimatedWaitTime: 'Usually 24-48 hours'
-      }
-    });
-  }
-
-  if (seller.verificationStatus === 'rejected') {
-    return res.status(403).json({
-      success: false,
-      message: `Your seller application was rejected: ${seller.rejectionReason || 'No reason provided'}`,
-      data: {
-        verificationStatus: 'rejected',
-        rejectionReason: seller.rejectionReason,
-        canReapply: true
       }
     });
   }
@@ -463,7 +451,6 @@ const getSellerProfile = asyncHandler(async (req, res) => {
     data: seller
   });
 });
-
 
 /**
  * Update seller profile
@@ -476,7 +463,7 @@ const updateSellerProfile = asyncHandler(async (req, res) => {
   }
 
   // Only allow updating certain fields
-  const allowedUpdates = ['shopName', 'shopAddress', 'gstNumber', 'panNumber'];
+  const allowedUpdates = ['shopName', 'shopAddress', 'gstNumber', 'panNumber', 'bankDetails'];
   const updates = {};
 
   allowedUpdates.forEach(field => {
@@ -486,7 +473,7 @@ const updateSellerProfile = asyncHandler(async (req, res) => {
   });
 
   // Location can be updated separately with validation
-  if (req.body.location) {
+  if (req.body.location && req.body.location.coordinates) {
     const [lng, lat] = req.body.location.coordinates;
     if (lng < -180 || lng > 180 || lat < -90 || lat > 90) {
       throw new ApiError(400, 'Invalid coordinate range');
@@ -514,6 +501,14 @@ const updateSellerProfile = asyncHandler(async (req, res) => {
     { new: true, runValidators: true }
   ).populate('user', 'name email phone isVerified');
 
+  // If location coordinates changed, sync all products of this seller
+  if (updates.location) {
+    await Product.updateMany(
+      { sellerId: seller._id },
+      { location: updates.location }
+    );
+  }
+
   res.json({
     success: true,
     data: updatedSeller
@@ -522,7 +517,7 @@ const updateSellerProfile = asyncHandler(async (req, res) => {
 
 /**
  * Get seller earnings summary
- * GET /api/seller/earnings
+ * GET /api/sellers/earnings
  */
 const getSellerEarnings = asyncHandler(async (req, res) => {
   const seller = await Seller.findOne({ user: req.user.id });
@@ -532,21 +527,35 @@ const getSellerEarnings = asyncHandler(async (req, res) => {
 
   const { period = 'month' } = req.query;
 
-  let startDate;
+  // If seller is not yet approved, return zeroed earnings
+  if (seller.verificationStatus !== 'approved' && !seller.isVerified) {
+    return res.json({
+      success: true,
+      data: {
+        totalEarnings: 0,
+        orderCount: 0,
+        averageOrderValue: 0,
+        dailyEarnings: [],
+        period
+      }
+    });
+  }
+
   const now = new Date();
+  let startDate = new Date();
 
   switch (period) {
     case 'week':
-      startDate = new Date(now.setDate(now.getDate() - 7));
+      startDate.setDate(now.getDate() - 7);
       break;
     case 'month':
-      startDate = new Date(now.setMonth(now.getMonth() - 1));
+      startDate.setMonth(now.getMonth() - 1);
       break;
     case 'year':
-      startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+      startDate.setFullYear(now.getFullYear() - 1);
       break;
     default:
-      startDate = new Date(now.setMonth(now.getMonth() - 1));
+      startDate.setMonth(now.getMonth() - 1);
   }
 
   const orders = await Order.find({
@@ -555,17 +564,17 @@ const getSellerEarnings = asyncHandler(async (req, res) => {
     createdAt: { $gte: startDate }
   });
 
-  const totalEarnings = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+  const totalEarnings = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const orderCount = orders.length;
 
   // Calculate earnings by day
   const earningsByDay = {};
   orders.forEach(order => {
-    const day = order.createdAt.toISOString().split('T')[0];
+    const day = order.createdAt ? order.createdAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     if (!earningsByDay[day]) {
       earningsByDay[day] = 0;
     }
-    earningsByDay[day] += order.totalAmount;
+    earningsByDay[day] += (order.totalAmount || 0);
   });
 
   const dailyEarnings = Object.entries(earningsByDay)

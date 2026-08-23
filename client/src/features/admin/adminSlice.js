@@ -209,6 +209,18 @@ export const fetchAdminOrderDetails = createAsyncThunk(
   }
 );
 
+export const updateAdminOrderStatus = createAsyncThunk(
+  'admin/updateOrderStatus',
+  async ({ orderId, status, notes }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(`/admin/orders/${orderId}/status`, { status, notes });
+      return response.data.data; // updated order
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update order status');
+    }
+  }
+);
+
 // ----- Settings -----
 export const fetchSettings = createAsyncThunk(
   'admin/fetchSettings',
@@ -252,6 +264,7 @@ const initialState = {
   },
   settings: null,
   status: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  actionLoading: false,
   error: null,
 };
 
@@ -260,6 +273,9 @@ const adminSlice = createSlice({
   name: 'admin',
   initialState,
   reducers: {
+    clearAdminError: (state) => {
+      state.error = null;
+    },
     clearAdminData: (state) => {
       state.dashboardStats = null;
       state.users = { data: [], pagination: { page: 1, totalPages: 1, totalResults: 0 } };
@@ -268,6 +284,7 @@ const adminSlice = createSlice({
       state.orders = { data: [], pagination: { page: 1, totalPages: 1, totalResults: 0 } };
       state.settings = null;
       state.status = 'idle';
+      state.actionLoading = false;
       state.error = null;
     },
   },
@@ -436,6 +453,18 @@ const adminSlice = createSlice({
         state.error = action.payload;
       })
 
+      .addCase(updateAdminOrderStatus.fulfilled, (state, action) => {
+        const updated = action.payload;
+        const index = state.orders.data.findIndex((o) => o._id === updated._id);
+        if (index !== -1) {
+          state.orders.data[index] = updated;
+        }
+        state.error = null;
+      })
+      .addCase(updateAdminOrderStatus.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+
       // ----- Settings -----
       .addCase(fetchSettings.fulfilled, (state, action) => {
         state.settings = action.payload;
@@ -455,5 +484,5 @@ const adminSlice = createSlice({
 });
 
 // ----- Export actions & reducer -----
-export const { clearAdminData } = adminSlice.actions;
+export const { clearAdminError, clearAdminData } = adminSlice.actions;
 export default adminSlice.reducer;

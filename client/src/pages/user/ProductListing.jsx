@@ -37,6 +37,45 @@ const DEFAULT_CATEGORIES = [
   { id: 'accessories', slug: 'accessories', name: 'Accessories' },
 ];
 
+// Default fallback image
+const DEFAULT_FALLBACK_IMAGE =
+  'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=500&auto=format&fit=crop&q=80';
+
+const getProductImage = (product) => {
+  if (!product) return DEFAULT_FALLBACK_IMAGE;
+
+  // 1. primaryImage object or string
+  if (product.primaryImage) {
+    if (typeof product.primaryImage === 'string' && product.primaryImage.trim()) {
+      return product.primaryImage.trim();
+    }
+    if (typeof product.primaryImage === 'object' && product.primaryImage.url) {
+      return product.primaryImage.url;
+    }
+  }
+
+  // 2. images array
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const primary = product.images.find((img) => img?.isPrimary && img?.url);
+    if (primary?.url) return primary.url;
+
+    const first = product.images[0];
+    if (typeof first === 'string' && first.trim()) return first.trim();
+    if (typeof first === 'object' && first?.url) return first.url;
+    if (typeof first === 'object' && first?.image) return first.image;
+  }
+
+  // 3. direct image or thumbnail properties
+  if (typeof product.image === 'string' && product.image.trim()) {
+    return product.image.trim();
+  }
+  if (typeof product.thumbnail === 'string' && product.thumbnail.trim()) {
+    return product.thumbnail.trim();
+  }
+
+  return DEFAULT_FALLBACK_IMAGE;
+};
+
 // Quick price presets
 const PRICE_PRESETS = [
   { label: 'Under ৳500', min: null, max: 500 },
@@ -823,11 +862,7 @@ export default function ProductListing() {
                   const isJustAdded = justAddedId === productId;
                   const isOutOfStock = product.stock === 0 || product.isInStock === false;
 
-                  const imageUrl =
-                    product.primaryImage?.url ||
-                    product.images?.[0]?.url ||
-                    (typeof product.images?.[0] === 'string' ? product.images[0] : null) ||
-                    'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=500&auto=format&fit=crop&q=60';
+                  const imageUrl = getProductImage(product);
 
                   const categoryName =
                     typeof product.category === 'object'
@@ -850,13 +885,17 @@ export default function ProductListing() {
                       {/* Product Image */}
                       <Link
                         to={`/products/${product.slug || productId}`}
-                        className="relative w-full h-44 rounded-xl bg-slate-50 overflow-hidden mb-3 flex items-center justify-center block"
+                        className="relative w-full h-48 rounded-xl bg-slate-50 overflow-hidden mb-3 flex items-center justify-center p-2 border border-slate-100 group-hover:border-emerald-200 transition-colors block"
                       >
                         <img
                           src={imageUrl}
-                          alt={product.name}
-                          className="object-contain h-full w-full group-hover:scale-105 transition-transform duration-300"
+                          alt={product.name || 'Product'}
+                          className="object-contain h-full w-full group-hover:scale-105 transition-transform duration-300 mix-blend-multiply"
                           loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = DEFAULT_FALLBACK_IMAGE;
+                          }}
                         />
                       </Link>
 

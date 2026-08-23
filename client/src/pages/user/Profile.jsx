@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
@@ -374,6 +375,28 @@ const Profile = () => {
               </p>
             )}
           </section>
+
+          {/* Merchant / Seller Section */}
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-5 shadow-xs space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🏪</span>
+              <h3 className="font-bold text-gray-900 text-sm">
+                {profile?.role === 'seller' ? 'Seller Account Active' : 'Sell on VectorX'}
+              </h3>
+            </div>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              {profile?.role === 'seller'
+                ? 'Access your merchant dashboard to manage products, incoming orders, and earnings.'
+                : 'Register your shop to reach nearby buyers with automatic distance-based product ranking.'}
+            </p>
+            <div className="pt-1">
+              <Link to={profile?.role === 'seller' ? '/seller/dashboard' : '/become-seller'}>
+                <Button size="sm" variant="primary" className="w-full shadow-xs">
+                  {profile?.role === 'seller' ? 'Open Seller Portal →' : 'Register as Seller →'}
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* Right Column: Saved Addresses */}

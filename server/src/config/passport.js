@@ -1,11 +1,10 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const bcrypt = require('bcryptjs');
 const User = require('../models/User.model');
 
 // Serialize user
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  done(null, user.id || user._id);
 });
 
 // Deserialize user
@@ -18,47 +17,54 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-// Google Strategy
+// Google Strategy - Login ONLY (No Register)
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL,
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback',
     passReqToCallback: true
   },
   async (req, accessToken, refreshToken, profile, done) => {
     try {
       const email = profile.emails?.[0]?.value;
       if (!email) {
-        return done(new Error('No email found in Google profile'), null);
+        return done(null, false, { message: 'No email found in Google profile' });
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+      
+      // Check if user exists with this email (case-insensitive) - supports user, seller, admin
+      let user = await User.findOne({ email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } });
+      
+      if (!user) {
+        // DO NOT REGISTER NEW USERS VIA GOOGLE AUTH!
+        // Google auth is strictly for login of registered users (user, seller, admin).
+        return done(null, false, { 
+          message: 'Account not found with this Google email. Please register first with your email and password before using Google Login.' 
+        });
+      }
+
+      // Check if user is blocked
+      if (user.isBlocked) {
+        return done(null, false, { message: 'Your account has been blocked. Please contact support.' });
       }
       
-      // Check if user exists
-      let user = await User.findOne({ email });
-      
-      if (user) {
-        // User exists - update Google ID if not set
-        if (!user.googleId) {
-          user.googleId = profile.id;
-          await user.save();
-        }
-        return done(null, user);
+      // Update Google ID if not set
+      if (!user.googleId) {
+        user.googleId = profile.id;
       }
-      
-      // Create new user
-      const name = profile.displayName || profile.name?.givenName || 'User';
-      
-      user = await User.create({
-        name: name,
-        email: email,
-        password: await bcrypt.hash(Math.random().toString(36), 10),
-        googleId: profile.id,
-        isVerified: true, // Google accounts are automatically verified
-        role: 'user' // Default role
-      });
+
+      // Google verifies email ownership, so mark user as verified
+      if (!user.isVerified) {
+        user.isVerified = true;
+      }
+
+      await user.save();
       
       return done(null, user);
       
     } catch (error) {
+      console.error('Google Auth Error:', error);
       return done(error, null);
     }
   }

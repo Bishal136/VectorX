@@ -19,7 +19,7 @@ router.get('/users', adminController.getUsers);
 router.get('/users/:id', adminController.getUserById); 
 
 router.put('/users/:id/block', validate(adminSchemas.blockUser), adminController.blockUser);
-router.delete('/users/:id', validate(adminSchemas.deleteUserSchema), adminController.deleteUser); 
+router.delete('/users/:id', adminController.deleteUser); 
 
 // Seller management
 router.get('/sellers', adminController.getSellers);

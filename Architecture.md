@@ -1,7 +1,7 @@
 # VectorX — Architecture Document
 
-**Version:** 1.0
-**Last Updated:** 2026-08-11
+**Version:** 1.1
+**Last Updated:** 2026-08-23
 
 ---
 
@@ -19,13 +19,13 @@ flowchart LR
         AUTH["Auth Routes\n+ JWT Middleware"]
         PROD["Product Routes\n+ Geo Controller"]
         ORD["Order Routes"]
-        SELL["Seller Routes"]
+        SELL["Seller Routes\n+ KYC & Analytics"]
         ADM["Admin Routes"]
     end
 
     subgraph External["External Services"]
         CLOUD["Cloudinary\n(Images)"]
-        PAY["Stripe / PayPal\n(Payments)"]
+        PAY["Stripe / PayPal / Walletmix\n(Payments)"]
         MAIL["Nodemailer\n(SMTP)"]
         MAPS["Google Maps API\n(Address Autocomplete)"]
     end
@@ -33,6 +33,7 @@ flowchart LR
     subgraph DB["MongoDB Atlas"]
         UCOL[("users\n2dsphere index")]
         PCOL[("products\n2dsphere index")]
+        SCOL[("sellers\n2dsphere index")]
         OCOL[("orders")]
         CCOL[("categories")]
     end
@@ -44,9 +45,11 @@ flowchart LR
     AUTH --> UCOL
     PROD --> PCOL
     ORD --> OCOL
+    SELL --> SCOL
     SELL --> PCOL
     SELL --> OCOL
     ADM --> UCOL
+    ADM --> SCOL
     ADM --> CCOL
 
     PROD -->|"$geoNear query"| PCOL
@@ -56,7 +59,7 @@ flowchart LR
     UP --> MAPS
 ```
 
-**Flow summary:** The React client (three role-based panel bundles sharing a common component library) talks to a single Express REST API. The API layer is split by domain (auth, products, orders, seller, admin), each with role-scoped middleware. MongoDB stores geolocation as GeoJSON `Point` fields with `2dsphere` indexes on the `users` and `products` collections, enabling native `$geoNear` aggregation for distance-based sorting. External services (Cloudinary, Stripe/PayPal, Nodemailer, Google Maps) are called from the API layer, never directly from the client, to keep secrets server-side.
+**Flow summary:** The React client (three role-based panel bundles sharing a common component library) talks to a single Express REST API. The API layer is split by domain (auth, products, orders, seller, admin), each with role-scoped middleware. MongoDB stores geolocation as GeoJSON `Point` fields with `2dsphere` indexes on the `users`, `sellers`, and `products` collections, enabling native `$geoNear` aggregation for distance-based sorting. External services (Cloudinary, Stripe/PayPal/Walletmix, Nodemailer, Google Maps) are called from the API layer, never directly from the client, to keep secrets server-side.
 
 ---
 
@@ -67,63 +70,61 @@ flowchart LR
 ```
 vectorx-backend/
 ├── src/
-|   ├──constants
-|   |  ├──product.js ✅ 
+│   ├── constants/
+│   │   └── product.js           ✅
 │   ├── config/
-│   │   ├── db.js    ✅   # MongoDB connection + index verification
-|   |   ├── passport.js ✅
-│   │   ├── cloudinary.js ✅
-│   │                  
+│   │   ├── db.js                ✅   # MongoDB connection + index verification
+│   │   ├── passport.js          ✅   # Google OAuth configuration
+│   │   └── cloudinary.js        ✅   # Cloudinary image upload config
 │   ├── models/
-│   │   ├── User.model.js   ✅
-|   |   ├──Otp.model.js   ✅
-|   |   ├──Cart.model.js  ✅
-│   │   ├── Seller.model.js    ✅     # extends/references User
-│   │   ├── Product.model.js  ✅
-│   │   ├── Order.model.js ✅
-│   │   └── Category.model.js ✅
-|   |   └──Setting.model.js  ✅
-|   |   └──Payment.model.js ✅
+│   │   ├── User.model.js        ✅   # User auth, role, location & addresses
+│   │   ├── Otp.model.js         ✅   # Email OTP verification
+│   │   ├── Cart.model.js        ✅   # User cart items & sync
+│   │   ├── Seller.model.js      ✅   # Shop profile, KYC status, 2dsphere location
+│   │   ├── Product.model.js     ✅   # Products, categories, 2dsphere location
+│   │   ├── Order.model.js       ✅   # Order lifecycle, items, buyer & seller references
+│   │   ├── Category.model.js    ✅   # Product categories & hierarchical tree
+│   │   ├── Setting.model.js     ✅   # Platform commission, charges, coupons
+│   │   └── Payment.model.js     ✅   # Payment records & status
 │   ├── controllers/
-│   │   ├── auth.controller.js ✅
-│   │   ├── user.controller.js ✅
-│   │   ├── product.controller.js  ✅
-│   │   ├── order.controller.js
-│   │   ├── seller.controller.js ✅
-│   │   └── admin.controller.js  ✅
-|   |   └── payment.controller.js ✅
+│   │   ├── auth.controller.js   ✅
+│   │   ├── user.controller.js   ✅
+│   │   ├── product.controller.js ✅
+│   │   ├── order.controller.js  ✅
+│   │   ├── seller.controller.js ✅   # Dashboard metrics, products CRUD, orders, earnings
+│   │   ├── admin.controller.js  ✅
+│   │   └── payment.controller.js ✅
 │   ├── routes/
-│   │   ├── auth.routes.js ✅
-│   │   ├── user.routes.js ✅
-│   │   ├── product.routes.js  ✅
-│   │   ├── order.routes.js    ✅ 
-│   │   ├── seller.routes.js  ✅
-│   │   └── admin.routes.js  ✅
-|   |   └── payment.routes.js ✅
+│   │   ├── auth.routes.js       ✅
+│   │   ├── user.routes.js       ✅
+│   │   ├── product.routes.js    ✅
+│   │   ├── order.routes.js      ✅ 
+│   │   ├── seller.routes.js     ✅   # /api/sellers/* endpoints
+│   │   ├── admin.routes.js      ✅
+│   │   └── payment.routes.js    ✅
 │   ├── middlewares/
-│   │   ├── auth.middleware.js  ✅  # verifyToken
-│   │   ├── role.middleware.js   ✅  # isUser, isSeller, isAdmin
-│   │   ├── error.middleware.js   ✅ # centralized error handler
-│   │   └── validate.middleware.js  ✅ # request bodyvalidation (Joi/Zod)
-|   |   └──upload.middleware.js  ✅ 
+│   │   ├── auth.middleware.js   ✅   # verifyToken
+│   │   ├── role.middleware.js   ✅   # isUser, isSeller, isAdmin, isVerifiedSeller
+│   │   ├── error.middleware.js  ✅   # centralized error handler
+│   │   ├── validate.middleware.js ✅ # request body validation (Joi/Zod)
+│   │   └── upload.middleware.js ✅   # Multer file upload handler
 │   ├── services/
-|   |   ├──product.service.js ✅
-│   │   ├── geo.service.js    ✅     # $geoNear query builder + fallback logic
-│   │   ├── payment.service.js  ✅    #  Walletmix payment Getway
-│   │   ├── email.service.js       # Nodemailer wrappers
-│   │   └── otp.service.js ✅
-|   |   └──refreshToken.service.js ✅
-|   |   └── seller.service.js ✅
-|   |           
+│   │   ├── product.service.js   ✅   # Product query/filter/geo search & creation logic
+│   │   ├── geo.service.js       ✅   # $geoNear aggregation & distance calculators
+│   │   ├── payment.service.js   ✅   # Payment gateway integration
+│   │   ├── email.service.js     ✅   # Nodemailer wrappers
+│   │   ├── otp.service.js       ✅   # OTP generation & verification
+│   │   ├── refreshToken.service.js ✅
+│   │   └── seller.service.js    ✅   # Seller profile & verification helpers
 │   ├── utils/
-│   │   ├── apiResponse.js
-│   │   ├── asyncHandler.js  ✅
-│   │   └── logger.js
-|   |   └── ApiError.js  ✅
-|   ├── validations
-|   |   └──admin.validation.js ✅
-│   ├── app.js                     # Express app setup, middleware mounting
-│   └── server.js                  # entry point
+│   │   ├── apiResponse.js       ✅
+│   │   ├── asyncHandler.js      ✅
+│   │   ├── logger.js            ✅
+│   │   └── ApiError.js          ✅
+│   ├── validations/
+│   │   └── admin.validation.js  ✅
+│   ├── app.js                   ✅   # Express app setup, middleware & route mounting
+│   └── server.js                ✅   # Server entry point
 ├── tests/
 │   ├── auth.test.js
 │   ├── geo.test.js
@@ -141,8 +142,8 @@ vectorx-frontend/
 │   └── index.html                     # React এর এন্ট্রি HTML
 ├── src/
 │   ├── app/                           # Redux store কনফিগারেশন
-│   │   ├── store.js                   # configureStore, middleware, API reducer যোগ
-│   │   └── rootReducer.js             # (ঐচ্ছিক) সব slice একত্রে করা (যদি store এ সরাসরি না করি)
+│   │   ├── store.js       ✅              # configureStore, middleware, API reducer যোগ
+│   │   └── rootReducer.js   ✅           # (ঐচ্ছিক) সব slice একত্রে করা (যদি store এ সরাসরি না করি)
 │   │
 │   ├── features/                      # প্রতিটি ফিচার আলাদা মডিউল
 │   │   ├── auth/                      # প্রমাণীকরণ (লগইন, রেজিস্টার, OTP, টোকেন)
@@ -162,8 +163,8 @@ vectorx-frontend/
 │   │   ├── payment/                   # পেমেন্ট ইন্টেন্ট ও স্ট্যাটাস
 │   │   │   └── paymentSlice.js        # paymentIntent, status (idle/processing/succeeded/failed), error
 │   │   ├── seller/                    # সেলার প্যানেল (ড্যাশবোর্ড, প্রোডাক্ট CRUD, অর্ডার)
-│   │   │   ├── sellerSlice.js         # ড্যাশবোর্ড স্ট্যাটস, প্রোডাক্ট লিস্ট, অর্ডার লিস্ট, শপ প্রোফাইল
-│   │   │   └── sellerApi.js           # সেলার রেজিস্ট্রেশন, ড্যাশবোর্ড, প্রোডাক্ট CRUD, অর্ডার স্ট্যাটাস আপডেট
+│   │   │   ├── sellerSlice.js   ✅      # ড্যাশবোর্ড স্ট্যাটস, প্রোডাক্ট লিস্ট, অর্ডার লিস্ট, শপ প্রোফাইল
+│   │   │   └── sellerApi.js     ✅      # সেলার রেজিস্ট্রেশন, ড্যাশবোর্ড, প্রোডাক্ট CRUD, অর্ডার স্ট্যাটাস আপডেট
 │   │   └── admin/                     # অ্যাডমিন প্যানেল (সব ইউজার, সেলার, ক্যাটেগরি, সেটিংস)
 │   │       ├── adminSlice.js          # ইউজার, সেলার, ক্যাটেগরি, প্ল্যাটফর্ম স্ট্যাটস, সেটিংস
 │   │       └── adminApi.js            # ইউজার/সেলার ব্লক, ভেরিফাই, ক্যাটেগরি CRUD, সেটিংস আপডেট, ড্যাশবোর্ড
@@ -173,7 +174,7 @@ vectorx-frontend/
 │   │   │   ├── Button.jsx ✅  
 │   │   │   ├── Card.jsx
 │   │   │   ├── Modal.jsx ✅ 
-│   │   │   ├── Input.jsx
+│   │   │   ├── Input.jsx ✅
 │   │   │   ├── Select.jsx
 │   │   │   ├── Table.jsx
 │   │   │   ├── Badge.jsx  ✅
@@ -198,35 +199,36 @@ vectorx-frontend/
 │   │   │   ├── Login.jsx ✅
 │   │   │   ├── Register.jsx  ✅
 │   │   │   ├── VerifyOtp.jsx  ✅
-│   │   │   └── ForgotPassword.jsx
+│   │   │   └── ForgotPassword.jsx ✅
             └──  GoogleCallback.jsx ✅
 │   │   ├── user/                      # ইউজার প্যানেল পেজ
-│   │   │   ├── Home.jsx
+│   │   │   ├── Home.jsx ✅
 │   │   │   ├── ProductListing.jsx ✅
-│   │   │   ├── ProductDetails.jsx
-│   │   │   ├── Cart.jsx
-│   │   │   ├── Checkout.jsx
-│   │   │   ├── Profile.jsx
-│   │   │   └── OrderHistory.jsx
+│   │   │   ├── ProductDetails.jsx ✅
+│   │   │   ├── Cart.jsx  ✅
+│   │   │   ├── Checkout.jsx ✅
+│   │   │   ├── Profile.jsx ✅
+│   │   │   └── OrderHistory.jsx ✅
 │   │   ├── seller/                    # সেলার প্যানেল পেজ
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── Products.jsx           # প্রোডাক্ট লিস্ট + অ্যাড/এডিট মডেল
-│   │   │   ├── Orders.jsx             # অর্ডার লিস্ট + স্ট্যাটাস আপডেট
-│   │   │   └── ShopProfile.jsx        # শপ প্রোফাইল এডিট
+│   │   │   ├── SellerDashboard.jsx ✅ # ড্যাশবোর্ড ওভারভিউ, মেট্রিক্স ও আর্নিংস
+│   │   │   ├── Products.jsx        ✅ # প্রোডাক্ট লিস্ট + অ্যাড/এডিট/ডিলিট মডেল
+│   │   │   ├── Orders.jsx          ✅ # অর্ডার লিস্ট + স্ট্যাটাস আপডেট
+│   │   │   ├── ShopProfile.jsx     ✅ # শপ প্রোফাইল, লোকেশন ও ব্যাংক ইনফো
+│   │   │   └── RegisterSeller.jsx  ✅ # সেলার অনবোর্ডিং রেজিস্ট্রেশন ফর্ম
 │   │   ├── admin/                     # অ্যাডমিন প্যানেল পেজ
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── Users.jsx
-│   │   │   ├── Sellers.jsx            # সেলার ভেরিফিকেশন কিউ
-│   │   │   ├── Categories.jsx
-│   │   │   ├── Orders.jsx
-│   │   │   └── Settings.jsx
-│   │   └── Unauthorized.jsx           # ৪০৩ পেজ (অনুমতি নেই)
+│   │   │   ├── Dashboard.jsx       ✅ # প্ল্যাটফর্ম ড্যাশবোর্ড, মেট্রিক্স ও রেভেনিউ
+│   │   │   ├── Users.jsx           ✅ # ইউজার ম্যানেজমেন্ট ও ব্লক/আনব্লক
+│   │   │   ├── Sellers.jsx         ✅ # সেলার KYC ভেরিফিকেশন ও সাসপেন্ড
+│   │   │   ├── Categories.jsx      ✅ # ক্যাটেগরি হায়ারার্কি ও SEO
+│   │   │   ├── Orders.jsx          ✅ # প্ল্যাটফর্ম অর্ডার ও বিরোধ নিষ্পত্তি
+│   │   │   └── Settings.jsx        ✅ # গ্লোবাল সেটিংস, কমিশন ও কুপন
+│   │   └── Unauthorized.jsx ✅        # ৪০৩ পেজ (অনুমতি নেই)
 │   │
 │   ├── routes/                        # রাউট কনফিগারেশন
-│   │   ├── AppRoutes.jsx              # সব রাউটের প্যারেন্ট (BrowserRouter এর ভেতর)
-│   │   ├── ProtectedRoute.jsx         # রোল-বেসড গার্ড (টোকেন ও রোল চেক)
+│   │   ├── AppRoutes.jsx       ✅     # সব রাউটের প্যারেন্ট (BrowserRouter এর ভেতর)
+│   │   ├── ProtectedRoute.jsx  ✅     # রোল-বেসড গার্ড (টোকেন ও রোল চেক)
 │   │   ├── UserRoutes.jsx             # (ঐচ্ছিক) ইউজার রাউট গ্রুপ
-│   │   ├── SellerRoutes.jsx           # (ঐচ্ছিক) সেলার রাউট গ্রুপ
+│   │   ├── SellerRoutes.jsx    ✅     # সেলার রাউট গ্রুপ
 │   │   └── AdminRoutes.jsx            # (ঐচ্ছিক) অ্যাডমিন রাউট গ্রুপ
 │   │
 │   ├── hooks/                         # কাস্টম হুক
@@ -456,27 +458,114 @@ const categorySchema = new mongoose.Schema({
 ```
 > If `lat`/`lng` are omitted or invalid, `sortedBy` becomes `"popularity"` and `fallbackUsed: true` — this is how the frontend can surface a "showing popular products near your area is unavailable" banner (FR-8).
 
-### 4.4 Seller
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| POST | `/api/seller/register` | Create seller profile (pending verification) | User |
-| GET | `/api/seller/dashboard` | Orders/revenue/top-products summary | Seller (verified) |
-| GET, POST | `/api/seller/products` | List / create products | Seller (verified) |
-| PUT, DELETE | `/api/seller/products/:id` | Update / delete own product | Seller (owns product) |
-| GET | `/api/seller/orders` | List incoming orders | Seller |
-| PUT | `/api/seller/orders/:id/status` | Update order status | Seller (owns order) |
+### 4.4 Seller API Reference
 
-### 4.5 Admin
-| Method | Endpoint | Description | Auth |
+| Method | Endpoint | Description | Auth Required | Permissions / Status |
+|---|---|---|---|---|
+| POST | `/api/sellers/register` | Create seller profile with GPS coordinates & bank details | `verifyToken` | User (becomes `role: 'seller'`) |
+| GET | `/api/sellers/profile` | Get store profile, coordinates, KYC status, tax & bank info | `verifyToken` | User / Seller |
+| PUT | `/api/sellers/profile` | Update shop details, address, coordinates, tax & bank info | `verifyToken`, `checkSellerExists` | Seller (syncs product coordinates) |
+| GET | `/api/sellers/dashboard` | Orders count, revenue, top products, low stock alerts, recent orders | `verifyToken`, `isSeller`, `checkSellerExists` | Seller (graceful zero-state if pending) |
+| GET | `/api/sellers/earnings` | Period revenue, order count, AOV & daily breakdown (`?period=week\|month\|year`) | `verifyToken`, `isSeller`, `checkSellerExists` | Seller (graceful zero-state if pending) |
+| GET | `/api/sellers/products` | Paginated catalog with search, category, status & stock filters | `verifyToken`, `isSeller`, `isVerifiedSeller` | Verified Seller |
+| POST | `/api/sellers/products` | Create product (inherits shop's 2dsphere coordinates) | `verifyToken`, `isSeller`, `isVerifiedSeller` | Verified Seller |
+| PUT | `/api/sellers/products/:id` | Update product details, pricing, compare price, stock, visibility | `verifyToken`, `isSeller`, `isVerifiedSeller` | Verified Seller (owns product) |
+| DELETE | `/api/sellers/products/:id` | Delete product from store catalog | `verifyToken`, `isSeller`, `isVerifiedSeller` | Verified Seller (owns product) |
+| GET | `/api/sellers/orders` | List incoming orders with status filter & customer details | `verifyToken`, `isSeller`, `isVerifiedSeller` | Verified Seller |
+| PUT | `/api/sellers/orders/:id/status` | Advance order lifecycle status | `verifyToken`, `isSeller`, `isVerifiedSeller` | Verified Seller (owns order) |
+
+#### 4.4.1 Seller KYC Verification Lifecycle
+```mermaid
+stateDiagram-v2
+    [*] --> Unregistered: User account created
+    Unregistered --> Pending: POST /api/sellers/register (KYC submitted)
+    Pending --> Approved: Admin approves KYC (PUT /api/admin/sellers/:id/verify)
+    Pending --> Rejected: Admin rejects KYC with rejectionReason
+    Rejected --> Pending: Seller edits details (PUT /api/sellers/profile) & re-submits
+    Approved --> Suspended: Admin suspends seller (fraud/violation)
+    Suspended --> Approved: Admin unsuspends seller
+    Approved --> [*]: Full catalog access & hyperlocal ranking active
+```
+
+#### 4.4.2 Seller Order Status State Machine
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Customer places order
+    Pending --> Processing: Seller confirms order
+    Pending --> Cancelled: Seller cancels (out of stock)
+    Processing --> Shipped: Order handed over to courier
+    Processing --> Cancelled: Cancellation before dispatch
+    Shipped --> Delivered: Buyer receives package
+    Shipped --> Cancelled: Return before delivery
+    Delivered --> Refunded: Return approved & processed
+    Cancelled --> [*]
+    Refunded --> [*]
+    Delivered --> [*]
+```
+
+#### 4.4.3 Example — `GET /api/sellers/dashboard`
+```json
+// Response 200 (Verified Seller)
+{
+  "success": true,
+  "data": {
+    "totalOrders": 42,
+    "totalRevenue": 62990,
+    "pendingOrders": 3,
+    "totalProducts": 18,
+    "topProducts": [
+      {
+        "productId": "665f1a...",
+        "name": "Wireless Noise Cancelling Earbuds",
+        "quantity": 24,
+        "revenue": 35976
+      }
+    ],
+    "lowStockProducts": [
+      {
+        "_id": "665f1b...",
+        "name": "Bluetooth Speaker Mini",
+        "stock": 2,
+        "lowStockThreshold": 5
+      }
+    ],
+    "recentOrders": [
+      {
+        "_id": "6660a1...",
+        "totalAmount": 2998,
+        "status": "Pending",
+        "createdAt": "2026-08-23T10:30:00.000Z",
+        "userId": { "name": "Bishal Roy", "email": "bishal@example.com" },
+        "items": [{ "name": "Wireless Noise Cancelling Earbuds", "quantity": 2, "price": 1499 }]
+      }
+    ],
+    "verificationStatus": "approved",
+    "isVerified": true
+  }
+}
+```
+
+### 4.5 Admin API Reference
+| Method | Endpoint | Description | Auth Required |
 |---|---|---|---|
-| GET | `/api/admin/dashboard` | Platform-wide stats | Admin |
-| GET | `/api/admin/users` | List/filter users | Admin |
-| PUT | `/api/admin/users/:id/block` | Block/unblock user | Admin |
-| GET | `/api/admin/sellers` | List sellers (filter by verificationStatus) | Admin |
-| PUT | `/api/admin/sellers/:id/verify` | Approve/reject seller KYC | Admin |
-| GET, POST, PUT, DELETE | `/api/admin/categories` | Manage categories | Admin |
-| GET | `/api/admin/orders` | View all orders (dispute oversight) | Admin |
-| PUT | `/api/admin/settings` | Update delivery charge / commission / coupons | Admin |
+| GET | `/api/admin/dashboard` | Platform-wide analytics (GMV, total users, sellers, orders, recent transactions) | Admin |
+| GET | `/api/admin/users` | List and search users with role, email verification & pagination | Admin |
+| GET | `/api/admin/users/:id` | Get detailed user profile with addresses and order counts | Admin |
+| PUT | `/api/admin/users/:id/block` | Block or unblock user account | Admin |
+| DELETE | `/api/admin/users/:id` | Permanently delete user account | Admin |
+| GET | `/api/admin/sellers` | List merchants with verification status filter (`pending`, `approved`, `rejected`) | Admin |
+| GET | `/api/admin/sellers/:id` | Get detailed shop profile, banking details & 2dsphere location | Admin |
+| PUT | `/api/admin/sellers/:id/verify` | Approve or reject seller KYC application with mandatory rejection reason | Admin |
+| PUT | `/api/admin/sellers/:id/suspend` | Suspend or unsuspend store listings | Admin |
+| GET | `/api/admin/categories` | List all categories with parent hierarchies and active statuses | Admin |
+| POST | `/api/admin/categories` | Create category with slug, image, sort order and SEO metadata | Admin |
+| PUT | `/api/admin/categories/:id` | Update category properties, parent mapping, or SEO | Admin |
+| DELETE | `/api/admin/categories/:id` | Delete category (supports `?force=true` for cascading subcategories) | Admin |
+| GET | `/api/admin/orders` | View all platform orders with status, payment and date range filters | Admin |
+| GET | `/api/admin/orders/:id` | View comprehensive order payload, shipping address & item details | Admin |
+| PUT | `/api/admin/orders/:id/status` | Override order lifecycle status for dispute resolution | Admin |
+| GET | `/api/admin/settings` | Retrieve platform global config (delivery charges, commission %, coupons) | Admin |
+| PUT | `/api/admin/settings` | Update platform delivery charges, commission rate % and coupon codes | Admin |
 
 ---
 
@@ -506,10 +595,16 @@ const categorySchema = new mongoose.Schema({
     total: 0
   },
   seller: {
-    dashboardStats: null,
-    products: [],
-    orders: [],
-    status: 'idle'
+    profile: null,        // { _id, shopName, shopAddress, location, verificationStatus, ... }
+    dashboardStats: null, // { totalOrders, totalRevenue, pendingOrders, totalProducts, topProducts, lowStockProducts, recentOrders }
+    earnings: null,       // { totalEarnings, orderCount, averageOrderValue, dailyEarnings }
+    products: [],         // array of seller's products
+    productPagination: { page: 1, limit: 20, total: 0, totalPages: 1 },
+    orders: [],           // array of incoming customer orders
+    orderPagination: { page: 1, limit: 20, total: 0, totalPages: 1 },
+    status: 'idle',       // 'idle' | 'loading' | 'succeeded' | 'failed'
+    actionLoading: false,
+    error: null
   },
   admin: {
     users: [],

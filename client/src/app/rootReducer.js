@@ -24,11 +24,8 @@ const rootReducer = combineReducers({
   products: productReducer,
   cart: cartReducer,
   orders: orderReducer,
-    payment: paymentReducer,
-
-
-  // [authApi.reducerPath]: authApi.reducer,
-  // [productApi.reducerPath]: productApi.reducer,
+  order: orderReducer,
+  payment: paymentReducer,
 });
 
 export default rootReducer;

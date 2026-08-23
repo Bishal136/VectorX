@@ -2,14 +2,14 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { loginUser } from '../../features/auth/authSlice';
+import { loginUser, clearAuthError } from '../../features/auth/authSlice';
 import useAuth from '../../hooks/useAuth';
 import Logo from '../../components/common/Logo';
 import AuthBrandPanel from '../../pages/auth/AuthBrandPanel';
 
 const EyeIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7z" />
     <circle cx="12" cy="12" r="3" strokeWidth={2} />
   </svg>
 );
@@ -33,25 +33,59 @@ const Login = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { status, error } = useSelector((state) => state.auth);
 
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formData, setFormData] = useState({
+    email: location.state?.email || '',
+    password: '',
+  });
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState('');
 
   const isLoading = status === 'loading';
-  const redirectTo = location.state?.from?.pathname || '/';
 
-  // Already logged in? bounce to where they came from (or home).
+  // Handle URL error params (e.g., from Google auth redirect)
   useEffect(() => {
-    if (isAuthenticated) navigate(redirectTo, { replace: true });
-  }, [isAuthenticated, navigate, redirectTo]);
+    const params = new URLSearchParams(location.search);
+    const googleError = params.get('error');
+    if (googleError) {
+      if (googleError === 'google_auth_failed') {
+        setFormError('Google sign-in failed. Please try again.');
+      } else {
+        setFormError(decodeURIComponent(googleError));
+      }
+    }
+  }, [location.search]);
+
+  const getDestination = (userRole) => {
+    const fromPath = location.state?.from?.pathname;
+    if (fromPath && fromPath !== '/' && fromPath !== '/login' && fromPath !== '/register') {
+      if (fromPath.startsWith('/seller') && userRole !== 'seller') {
+        return userRole === 'admin' ? '/admin/dashboard' : '/';
+      }
+      if (fromPath.startsWith('/admin') && userRole !== 'admin') {
+        return userRole === 'seller' ? '/seller/dashboard' : '/';
+      }
+      return fromPath;
+    }
+    if (userRole === 'seller') return '/seller/dashboard';
+    if (userRole === 'admin') return '/admin/dashboard';
+    return '/';
+  };
+
+  // Already logged in? bounce to role-appropriate dashboard or origin.
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate(getDestination(user.role), { replace: true });
+    }
+  }, [isAuthenticated, user, navigate, location.state]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     if (formError) setFormError('');
+    if (error) dispatch(clearAuthError());
   };
 
   const handleSubmit = async (e) => {
@@ -61,18 +95,19 @@ const Login = () => {
       return;
     }
     try {
-      await dispatch(loginUser(formData)).unwrap();
-      navigate(redirectTo, { replace: true });
+      const payload = {
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+      };
+      const result = await dispatch(loginUser(payload)).unwrap();
+      const userRole = result?.user?.role || result?.role;
+      navigate(getDestination(userRole), { replace: true });
     } catch {
       // rejected value is already captured in redux `error` state
     }
   };
 
   const handleGoogleLogin = () => {
-    // NOTE: as of now the backend has no /auth/google route implemented
-    // (only /api/auth/register, verify-otp, login, refresh, logout, profile,
-    // check-role, forgot-password, reset-password, seed-admin exist).
-    // This will 404 until that route is built on the backend.
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     window.location.href = `${apiUrl}/auth/google`;
   };
@@ -90,9 +125,28 @@ const Login = () => {
           <p className="mt-2 text-sm text-gray-500">Welcome back! Please enter your details.</p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
+            {location.state?.justVerified && !error && !formError && (
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+                ✓ Email verified successfully! Please sign in with your credentials.
+              </div>
+            )}
+
             {(formError || error) && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
-                {formError || error}
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 flex flex-col gap-1.5">
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{formError || error}</span>
+                </div>
+                {(formError || error)?.toString().toLowerCase().includes('verify') && (
+                  <Link
+                    to={`/verify-otp${formData.email ? `?email=${encodeURIComponent(formData.email.trim().toLowerCase())}` : ''}`}
+                    className="text-xs font-semibold text-indigo-700 hover:text-indigo-800 underline ml-6"
+                  >
+                    Click here to enter OTP and verify your email →
+                  </Link>
+                )}
               </div>
             )}
 

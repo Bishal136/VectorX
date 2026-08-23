@@ -20,14 +20,7 @@ const EyeOffIcon = ({ className }) => (
   </svg>
 );
 
-const GoogleIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24">
-    <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.54 5.54 0 01-2.4 3.64v3h3.88c2.27-2.09 3.54-5.17 3.54-8.88z" />
-    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.15-4.05 1.15-3.11 0-5.75-2.1-6.69-4.93H1.3v3.09A12 12 0 0012 24z" />
-    <path fill="#FBBC05" d="M5.31 14.31A7.2 7.2 0 014.9 12c0-.8.14-1.58.38-2.31V6.6H1.3A12 12 0 000 12c0 1.93.46 3.76 1.3 5.4l4.01-3.09z" />
-    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.69 1.3 6.6l4.01 3.09C6.25 6.85 8.89 4.75 12 4.75z" />
-  </svg>
-);
+
 
 const CheckIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -43,7 +36,7 @@ const accountTypes = [
 const Register = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { status, error } = useSelector((state) => state.auth);
 
   const [formData, setFormData] = useState({
@@ -61,8 +54,16 @@ const Register = () => {
   const isLoading = status === 'loading';
 
   useEffect(() => {
-    if (isAuthenticated) navigate('/', { replace: true });
-  }, [isAuthenticated, navigate]);
+    if (isAuthenticated && user) {
+      if (user.role === 'seller') {
+        navigate('/seller/dashboard', { replace: true });
+      } else if (user.role === 'admin') {
+        navigate('/admin/dashboard', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -102,11 +103,7 @@ const Register = () => {
     }
   };
 
-  const handleGoogleSignup = () => {
-    // Same caveat as Login: no /auth/google route on the backend yet.
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    window.location.href = `${apiUrl}/auth/google`;
-  };
+
 
   return (
     <div className="min-h-screen flex bg-white">
@@ -275,24 +272,6 @@ const Register = () => {
               className="w-full rounded-xl bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
             >
               {isLoading ? 'Creating account…' : 'Create account'}
-            </button>
-
-            <div className="relative py-1">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-white px-3 text-gray-400">OR</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleSignup}
-              className="w-full flex items-center justify-center gap-3 rounded-xl border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-            >
-              <GoogleIcon className="w-5 h-5" />
-              Sign up with Google
             </button>
           </form>
 
