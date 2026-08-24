@@ -272,21 +272,21 @@ const Checkout = () => {
             <h2 className="text-sm font-bold text-gray-900">Order Summary</h2>
             <div className="flex justify-between text-xs text-gray-600">
               <span>Items Total ({itemCount} items)</span>
-              <span className="font-semibold text-gray-900">${subtotal.toFixed(2)}</span>
+              <span className="font-semibold text-gray-900">৳{subtotal.toFixed(2)}</span>
             </div>
             {discountAmount > 0 && (
               <div className="flex justify-between text-xs text-emerald-700">
                 <span>Discount Applied</span>
-                <span className="font-semibold">-${discountAmount.toFixed(2)}</span>
+                <span className="font-semibold">-৳{discountAmount.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between text-xs text-gray-600">
               <span>Shipping</span>
-              <span className="font-semibold text-gray-900">{isFreeShipping ? 'FREE' : `$${shippingCost.toFixed(2)}`}</span>
+              <span className="font-semibold text-gray-900">{isFreeShipping ? 'FREE' : `৳${shippingCost.toFixed(2)}`}</span>
             </div>
             <div className="flex justify-between text-sm font-bold text-gray-900 pt-2 border-t border-gray-100">
               <span>Grand Total</span>
-              <span className="text-[#124B38] text-base font-extrabold">${grandTotal.toFixed(2)}</span>
+              <span className="text-[#124B38] text-base font-extrabold">৳{grandTotal.toFixed(2)}</span>
             </div>
           </div>
 
@@ -704,7 +704,7 @@ const Checkout = () => {
                 <div className="space-y-3 text-sm pb-5 border-b border-gray-100">
                   <div className="flex items-center justify-between text-gray-600">
                     <span>Subtotal</span>
-                    <span className="font-semibold text-gray-900">${subtotal.toFixed(2)}</span>
+                    <span className="font-semibold text-gray-900">৳{subtotal.toFixed(2)}</span>
                   </div>
 
                   <div className="flex items-center justify-between text-gray-600">
@@ -717,7 +717,7 @@ const Checkout = () => {
                   <div className="flex items-center justify-between text-gray-600">
                     <span>Discount</span>
                     <span className={`font-semibold ${discountAmount > 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
-                      {discountAmount > 0 ? `-$${discountAmount.toFixed(2)}` : '$0.0'}
+                      {discountAmount > 0 ? `-৳${discountAmount.toFixed(2)}` : '৳0.0'}
                     </span>
                   </div>
 
@@ -727,7 +727,7 @@ const Checkout = () => {
                       {isFreeShipping ? (
                         <span className="text-emerald-600 font-bold uppercase text-xs">FREE</span>
                       ) : (
-                        `$${shippingCost.toFixed(2)}`
+                        `৳${shippingCost.toFixed(2)}`
                       )}
                     </span>
                   </div>
@@ -827,7 +827,7 @@ const Checkout = () => {
                     <>
                       <span>Place Order</span>
                       <span className="opacity-75">|</span>
-                      <span>${grandTotal.toFixed(2)}</span>
+                      <span>৳{grandTotal.toFixed(2)}</span>
                     </>
                   )}
                 </button>

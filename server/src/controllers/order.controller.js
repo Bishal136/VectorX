@@ -54,7 +54,7 @@ const validateCoupon = asyncHandler(async (req, res) => {
   if (coupon.minOrderAmount > 0 && numericSubtotal < coupon.minOrderAmount) {
     throw new ApiError(
       400,
-      `Minimum order amount for coupon "${normalizedCode}" is $${coupon.minOrderAmount.toFixed(2)}`
+      `Minimum order amount for coupon "${normalizedCode}" is ৳${coupon.minOrderAmount.toFixed(2)}`
     );
   }
 

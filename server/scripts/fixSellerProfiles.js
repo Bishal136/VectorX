@@ -1,11 +1,12 @@
 // scripts/fixSellerProfiles.js
 
 const mongoose = require('mongoose');
+const path = require('path');
 const dotenv = require('dotenv');
 const User = require('../src/models/User.model');
 const Seller = require('../src/models/Seller.model');
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 /**
  * This script creates seller profiles for users who have role 'seller' 

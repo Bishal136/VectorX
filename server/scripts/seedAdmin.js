@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-require('dotenv').config({ path: '../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const User = require('../src/models/User.model');
 
@@ -22,14 +23,14 @@ const seedAdmin = async () => {
     const admin = await User.create({
       name: 'System Administrator',
       email: 'admin@vectorx.com',
-      password: 'Password123!',
+      password: '12345678',
       role: 'admin',
       isVerified: true
     });
 
     console.log('✓ Admin user created successfully:');
-    console.log(`Email: admin@vectorx.com`);
-    console.log(`Password: Password123! `);
+    console.log(`Email: ${admin.email}`);
+    console.log(`Password: ${admin.password} `);
     console.log(`ID: ${admin._id}`);
     console.log(`Role: ${admin.role}`);
 

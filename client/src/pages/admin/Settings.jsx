@@ -110,37 +110,37 @@ const Settings = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
             Platform Settings & Commission
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">
             Configure global fee rules, delivery parameters, and manage platform discount coupons.
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSaveGeneralSettings} className="space-y-6">
+      <form onSubmit={handleSaveGeneralSettings} className="space-y-4 sm:space-y-6">
         {/* Financial & Delivery Parameters */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
-          <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-xs p-4 sm:p-6 space-y-4 sm:space-y-5">
+          <h2 className="text-sm sm:text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
             <span>💳</span> Global Financial & Delivery Parameters
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-1">
+              <label className="block text-xs sm:text-sm font-semibold text-gray-800 mb-1">
                 Default Delivery Charge (৳)
               </label>
-              <p className="text-xs text-gray-500 mb-2">
+              <p className="text-[11px] sm:text-xs text-gray-500 mb-2">
                 Flat shipping fee applied to customer checkouts unless free shipping conditions are met.
               </p>
-              <div className="relative rounded-lg shadow-sm">
+              <div className="relative rounded-lg shadow-xs">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <span className="text-gray-500 text-sm font-bold">৳</span>
+                  <span className="text-gray-500 text-xs sm:text-sm font-bold">৳</span>
                 </div>
                 <input
                   type="number"
@@ -148,19 +148,19 @@ const Settings = () => {
                   required
                   value={deliveryCharge}
                   onChange={(e) => setDeliveryCharge(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 pl-8 pr-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full rounded-lg border border-gray-300 pl-8 pr-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-1">
+              <label className="block text-xs sm:text-sm font-semibold text-gray-800 mb-1">
                 Platform Commission Rate (%)
               </label>
-              <p className="text-xs text-gray-500 mb-2">
+              <p className="text-[11px] sm:text-xs text-gray-500 mb-2">
                 Percentage deducted from seller order payouts as platform transaction fee.
               </p>
-              <div className="relative rounded-lg shadow-sm">
+              <div className="relative rounded-lg shadow-xs">
                 <input
                   type="number"
                   min="0"
@@ -169,16 +169,16 @@ const Settings = () => {
                   required
                   value={commissionRate}
                   onChange={(e) => setCommissionRate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <span className="text-gray-500 text-sm font-bold">%</span>
+                  <span className="text-gray-500 text-xs sm:text-sm font-bold">%</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="p-4 bg-indigo-50/50 rounded-lg text-xs text-indigo-900 border border-indigo-100 flex items-start gap-2.5">
+          <div className="p-3 sm:p-4 bg-indigo-50/50 rounded-lg text-xs text-indigo-900 border border-indigo-100 flex items-start gap-2.5">
             <span className="text-base shrink-0">💡</span>
             <div>
               <strong>Payout Preview:</strong> On an order of ৳1,000, VectorX retains{' '}
@@ -189,13 +189,13 @@ const Settings = () => {
         </div>
 
         {/* Coupons Management */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-xs p-4 sm:p-6 space-y-4 sm:space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
             <div>
-              <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 flex items-center gap-2">
                 <span>🎟️</span> Platform Coupon Codes
               </h2>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
                 Active discounts applied during checkout
               </p>
             </div>
@@ -203,6 +203,7 @@ const Settings = () => {
               type="button"
               variant="secondary"
               size="sm"
+              className="w-full sm:w-auto justify-center text-xs"
               onClick={handleOpenAddCoupon}
             >
               <span className="mr-1 font-bold">+</span> Add Coupon
@@ -211,33 +212,33 @@ const Settings = () => {
 
           {couponCodes.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full min-w-[560px] text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200">
-                    <th className="py-2.5 px-3">Code</th>
-                    <th className="py-2.5 px-3">Discount</th>
-                    <th className="py-2.5 px-3">Min Order</th>
-                    <th className="py-2.5 px-3">Expires</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3 text-right">Actions</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Code</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Discount</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Min Order</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Expires</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Status</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {couponCodes.map((c, idx) => (
                     <tr key={idx} className="hover:bg-gray-50/75">
-                      <td className="py-2.5 px-3 font-mono font-bold text-indigo-700 text-sm">
+                      <td className="py-2.5 px-3 font-mono font-bold text-indigo-700 text-xs sm:text-sm whitespace-nowrap">
                         {c.code}
                       </td>
-                      <td className="py-2.5 px-3 font-semibold text-gray-800">
+                      <td className="py-2.5 px-3 font-semibold text-gray-800 whitespace-nowrap">
                         {c.discountType === 'percentage' ? `${c.discount}%` : `৳${c.discount}`}
                       </td>
-                      <td className="py-2.5 px-3 text-gray-600">
+                      <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">
                         ৳{c.minOrderAmount || 0}
                       </td>
-                      <td className="py-2.5 px-3 text-gray-500">
+                      <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap">
                         {c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : 'Never'}
                       </td>
-                      <td className="py-2.5 px-3">
+                      <td className="py-2.5 px-3 whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => handleToggleCouponActive(idx)}
@@ -248,11 +249,11 @@ const Settings = () => {
                           </Badge>
                         </button>
                       </td>
-                      <td className="py-2.5 px-3 text-right">
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => handleDeleteCoupon(idx)}
-                          className="text-red-500 hover:text-red-700 font-bold px-2 py-1 rounded"
+                          className="text-red-500 hover:text-red-700 font-bold px-2 py-1 rounded cursor-pointer"
                         >
                           ✕
                         </button>
@@ -263,7 +264,7 @@ const Settings = () => {
               </table>
             </div>
           ) : (
-            <div className="p-8 text-center text-gray-500 text-xs bg-gray-50 rounded-lg border border-dashed border-gray-300">
+            <div className="p-6 sm:p-8 text-center text-gray-500 text-xs bg-gray-50 rounded-lg border border-dashed border-gray-300">
               No active coupon codes configured. Click "+ Add Coupon" to create one.
             </div>
           )}
@@ -276,7 +277,7 @@ const Settings = () => {
             variant="primary"
             size="lg"
             loading={actionLoading}
-            className="px-8 font-semibold shadow-sm"
+            className="w-full sm:w-auto px-8 font-semibold shadow-xs justify-center text-sm"
           >
             Save Platform Settings
           </Button>
@@ -300,11 +301,11 @@ const Settings = () => {
               placeholder="e.g. VECTORX50"
               value={newCoupon.code}
               onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono uppercase focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs sm:text-sm font-mono uppercase focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Discount Type
@@ -312,7 +313,7 @@ const Settings = () => {
               <select
                 value={newCoupon.discountType}
                 onChange={(e) => setNewCoupon({ ...newCoupon, discountType: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs sm:text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
               >
                 <option value="percentage">Percentage (%)</option>
                 <option value="fixed">Fixed Amount (৳)</option>
@@ -329,12 +330,12 @@ const Settings = () => {
                 required
                 value={newCoupon.discount}
                 onChange={(e) => setNewCoupon({ ...newCoupon, discount: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Minimum Order Amount (৳)
@@ -344,7 +345,7 @@ const Settings = () => {
                 min="0"
                 value={newCoupon.minOrderAmount}
                 onChange={(e) => setNewCoupon({ ...newCoupon, minOrderAmount: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               />
             </div>
 
@@ -356,7 +357,7 @@ const Settings = () => {
                 type="date"
                 value={newCoupon.expiresAt}
                 onChange={(e) => setNewCoupon({ ...newCoupon, expiresAt: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               />
             </div>
           </div>
@@ -367,23 +368,29 @@ const Settings = () => {
               id="isCouponActive"
               checked={newCoupon.isActive}
               onChange={(e) => setNewCoupon({ ...newCoupon, isActive: e.target.checked })}
-              className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+              className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
             />
-            <label htmlFor="isCouponActive" className="text-xs font-medium text-gray-800">
+            <label htmlFor="isCouponActive" className="text-xs font-medium text-gray-800 cursor-pointer">
               Active immediately
             </label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3">
             <Button
               type="button"
               variant="secondary"
               size="md"
+              className="w-full sm:w-auto justify-center text-xs sm:text-sm"
               onClick={() => setCouponModalOpen(false)}
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="md">
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              className="w-full sm:w-auto justify-center text-xs sm:text-sm"
+            >
               Add Coupon
             </Button>
           </div>
@@ -394,3 +401,4 @@ const Settings = () => {
 };
 
 export default Settings;
+

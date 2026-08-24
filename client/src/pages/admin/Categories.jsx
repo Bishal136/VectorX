@@ -152,50 +152,55 @@ const Categories = () => {
   }, {});
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-10">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
             Category Management
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">
             Create, edit, organize category hierarchies, and manage product catalog taxonomy.
           </p>
         </div>
-        <Button variant="primary" size="md" onClick={handleOpenAddModal}>
-          <span className="mr-1.5">+</span> Add New Category
+        <Button
+          variant="primary"
+          size="md"
+          className="w-full sm:w-auto justify-center text-xs sm:text-sm"
+          onClick={handleOpenAddModal}
+        >
+          <span className="mr-1.5 font-bold">+</span> Add New Category
         </Button>
       </div>
 
-      {/* Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between gap-4">
-        <div className="flex-1 max-w-md">
+      {/* Search Bar & Stats */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex-1 max-w-md w-full">
           <input
             type="text"
             placeholder="Search categories by name or slug..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
           />
         </div>
-        <div className="text-sm text-gray-500 font-medium">
+        <div className="text-xs sm:text-sm text-gray-500 font-medium">
           Total: <span className="font-bold text-gray-900">{filteredCategories.length}</span> categories
         </div>
       </div>
 
       {/* Categories Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-xs overflow-hidden">
         {filteredCategories.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+            <table className="w-full min-w-[620px] text-left border-collapse text-xs sm:text-sm">
               <thead>
-                <tr className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200 text-xs">
-                  <th className="py-3.5 px-4">Category Name</th>
-                  <th className="py-3.5 px-4">Slug</th>
-                  <th className="py-3.5 px-4">Parent Level</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                <tr className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200 text-[11px] sm:text-xs">
+                  <th className="py-3 px-3 sm:px-4 whitespace-nowrap">Category Name</th>
+                  <th className="py-3 px-3 sm:px-4 whitespace-nowrap">Slug</th>
+                  <th className="py-3 px-3 sm:px-4 whitespace-nowrap">Parent Level</th>
+                  <th className="py-3 px-3 sm:px-4 whitespace-nowrap">Status</th>
+                  <th className="py-3 px-3 sm:px-4 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -205,40 +210,41 @@ const Categories = () => {
 
                   return (
                     <tr key={cat._id} className="hover:bg-gray-50/75 transition-colors">
-                      <td className="py-3.5 px-4">
+                      <td className="py-3 px-3 sm:px-4 whitespace-nowrap">
                         <div>
-                          <div className="font-semibold text-gray-900">{cat.name}</div>
+                          <div className="font-semibold text-gray-900 text-xs sm:text-sm">{cat.name}</div>
                           {cat.description && (
-                            <div className="text-xs text-gray-400 line-clamp-1 max-w-sm mt-0.5">
+                            <div className="text-[11px] text-gray-400 line-clamp-1 max-w-xs mt-0.5">
                               {cat.description}
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-gray-600">
+                      <td className="py-3 px-3 sm:px-4 font-mono text-xs text-gray-600 whitespace-nowrap">
                         /{cat.slug}
                       </td>
-                      <td className="py-3.5 px-4 text-xs">
+                      <td className="py-3 px-3 sm:px-4 text-xs whitespace-nowrap">
                         {parentName ? (
-                          <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-medium">
+                          <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-medium text-[11px]">
                             ↳ {parentName}
                           </span>
                         ) : (
-                          <span className="text-gray-400 font-semibold">Root Level</span>
+                          <span className="text-gray-400 font-semibold text-[11px]">Root Level</span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4">
+                      <td className="py-3 px-3 sm:px-4 whitespace-nowrap">
                         {cat.isActive !== false ? (
                           <Badge tone="success">Active</Badge>
                         ) : (
                           <Badge tone="neutral">Disabled</Badge>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="py-3 px-3 sm:px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
                           <Button
                             variant="secondary"
                             size="sm"
+                            className="text-xs px-2 sm:px-2.5 py-1"
                             onClick={() => handleOpenEditModal(cat)}
                           >
                             Edit
@@ -246,7 +252,7 @@ const Categories = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs px-1.5 py-1"
                             onClick={() => handleOpenDeleteModal(cat)}
                           >
                             🗑️
@@ -260,7 +266,7 @@ const Categories = () => {
             </table>
           </div>
         ) : (
-          <div className="p-12 text-center text-gray-500 text-sm">
+          <div className="p-8 sm:p-12 text-center text-gray-500 text-xs sm:text-sm">
             {status === 'loading' ? 'Loading categories...' : 'No categories found.'}
           </div>
         )}
@@ -283,7 +289,7 @@ const Categories = () => {
               placeholder="e.g. Electronics"
               value={formData.name}
               onChange={handleNameChange}
-              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
 
@@ -296,7 +302,7 @@ const Categories = () => {
               placeholder="e.g. electronics"
               value={formData.slug}
               onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
 
@@ -309,7 +315,7 @@ const Categories = () => {
               placeholder="e.g. Electronic products and gadgets"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
 
@@ -320,7 +326,7 @@ const Categories = () => {
             <select
               value={formData.parent}
               onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
             >
               <option value="">None (Top-Level / null)</option>
               {(categories || [])
@@ -346,11 +352,12 @@ const Categories = () => {
             </label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3">
             <Button
               variant="secondary"
               size="md"
               type="button"
+              className="w-full sm:w-auto justify-center text-xs sm:text-sm"
               onClick={() => setModalOpen(false)}
               disabled={actionLoading}
             >
@@ -360,6 +367,7 @@ const Categories = () => {
               variant="primary"
               size="md"
               type="submit"
+              className="w-full sm:w-auto justify-center text-xs sm:text-sm"
               loading={actionLoading}
             >
               {isEditing ? 'Save Changes' : 'Create Category'}
@@ -376,7 +384,7 @@ const Categories = () => {
       >
         {selectedCategory && (
           <div className="space-y-4">
-            <div className="p-3 bg-red-50 text-red-800 rounded-lg text-sm border border-red-200">
+            <div className="p-3 bg-red-50 text-red-800 rounded-lg text-xs sm:text-sm border border-red-200">
               ⚠️ Are you sure you want to delete category <strong>{selectedCategory.name}</strong>?
             </div>
 
@@ -386,17 +394,18 @@ const Categories = () => {
                 id="forceDeleteCategory"
                 checked={forceDelete}
                 onChange={(e) => setForceDelete(e.target.checked)}
-                className="rounded text-red-600 focus:ring-red-500 h-4 w-4 mt-0.5"
+                className="rounded text-red-600 focus:ring-red-500 h-4 w-4 mt-0.5 cursor-pointer"
               />
-              <label htmlFor="forceDeleteCategory" className="text-xs text-gray-700">
+              <label htmlFor="forceDeleteCategory" className="text-xs text-gray-700 cursor-pointer">
                 <strong>Force delete:</strong> Delete subcategories if any exist under this category.
               </label>
             </div>
 
-            <div className="flex justify-end gap-3 pt-3">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3">
               <Button
                 variant="secondary"
                 size="md"
+                className="w-full sm:w-auto justify-center text-xs sm:text-sm"
                 onClick={() => setDeleteModalOpen(false)}
                 disabled={actionLoading}
               >
@@ -405,6 +414,7 @@ const Categories = () => {
               <Button
                 variant="danger"
                 size="md"
+                className="w-full sm:w-auto justify-center text-xs sm:text-sm"
                 loading={actionLoading}
                 onClick={handleConfirmDelete}
               >
@@ -419,3 +429,4 @@ const Categories = () => {
 };
 
 export default Categories;
+

@@ -118,7 +118,7 @@ const Cart = () => {
     return acc + price * (item.quantity || 1);
   }, 0);
 
-  // Shipping rules: Orders >= $100 get free shipping, else $50
+  // Shipping rules: Orders >= ৳100 get free shipping, else ৳50
   const freeShippingThreshold = 100;
   const isFreeShipping = subtotal >= freeShippingThreshold;
   const shippingCost = selectedItems.length === 0 ? 0 : isFreeShipping ? 0 : 50;
@@ -457,7 +457,7 @@ const Cart = () => {
 
                           {/* Unit price badge for mobile */}
                           <div className="sm:hidden text-xs text-gray-500 pt-0.5">
-                            ${itemPrice.toFixed(2)} each
+                            ৳{itemPrice.toFixed(2)} each
                           </div>
                         </div>
                       </div>
@@ -492,14 +492,14 @@ const Cart = () => {
                         {/* Single item price (Desktop) */}
                         <div className="hidden sm:block text-right min-w-[65px]">
                           <span className="text-sm font-medium text-gray-700">
-                            ${itemPrice.toFixed(2)}
+                            ৳{itemPrice.toFixed(2)}
                           </span>
                         </div>
 
                         {/* Total line item price */}
                         <div className="text-right min-w-[75px]">
                           <span className="text-sm sm:text-base font-bold text-gray-900">
-                            ${itemTotal.toFixed(2)}
+                            ৳{itemTotal.toFixed(2)}
                           </span>
                         </div>
 
@@ -538,7 +538,7 @@ const Cart = () => {
                   <DeliveryIcon className="w-5 h-5" />
                 </div>
                 <h3 className="text-xs sm:text-sm font-bold text-gray-900 leading-snug">
-                  Order by 10pm for free next day delivery on Orders over $100
+                  Order by 10pm for free next day delivery on Orders over ৳100
                 </h3>
                 <p className="text-xs text-gray-500 leading-relaxed">
                   We deliver Monday to Saturday - excluding Holidays.
@@ -554,7 +554,7 @@ const Cart = () => {
                   Free next day delivery to stores.
                 </h3>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  Home delivery is $4.99 for orders under $100 and is FREE for all orders over $100.
+                  Home delivery is ৳50 for orders under ৳100 and is FREE for all orders over ৳100.
                 </p>
               </div>
 
@@ -588,13 +588,13 @@ const Cart = () => {
               <div className="space-y-3 text-sm pb-5 border-b border-gray-100">
                 <div className="flex items-center justify-between text-gray-600">
                   <span>Subtotal</span>
-                  <span className="font-semibold text-gray-900">${subtotal.toFixed(2)}</span>
+                  <span className="font-semibold text-gray-900">৳{subtotal.toFixed(2)}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-gray-600">
                   <span>Discount</span>
                   <span className={`font-semibold ${discountAmount > 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
-                    {discountAmount > 0 ? `-$${discountAmount.toFixed(2)}` : '$0.0'}
+                    {discountAmount > 0 ? `-৳${discountAmount.toFixed(2)}` : '৳0.0'}
                   </span>
                 </div>
 
@@ -602,11 +602,11 @@ const Cart = () => {
                   <span>Shipping Costs</span>
                   <span className="font-semibold text-gray-900">
                     {selectedItems.length === 0 ? (
-                      '$0.00'
+                      '৳0.00'
                     ) : isFreeShipping ? (
                       <span className="text-emerald-600 font-bold uppercase text-xs">FREE</span>
                     ) : (
-                      `$${shippingCost.toFixed(2)}`
+                      `৳${shippingCost.toFixed(2)}`
                     )}
                   </span>
                 </div>
@@ -663,8 +663,8 @@ const Cart = () => {
                   ) : (
                     <>
                       Get Free <strong className="text-gray-800">Shipping</strong> for orders over{' '}
-                      <strong className="text-gray-900">${freeShippingThreshold.toFixed(2)}</strong> (add{' '}
-                      <span className="text-emerald-700 font-bold">${amountNeededForFreeShipping.toFixed(2)}</span> more)
+                      <strong className="text-gray-900">৳{freeShippingThreshold.toFixed(2)}</strong> (add{' '}
+                      <span className="text-emerald-700 font-bold">৳{amountNeededForFreeShipping.toFixed(2)}</span> more)
                     </>
                   )}
                 </p>
@@ -697,7 +697,7 @@ const Cart = () => {
                 {selectedItems.length > 0 && (
                   <>
                     <span className="opacity-75">|</span>
-                    <span>${grandTotal.toFixed(2)}</span>
+                    <span>৳{grandTotal.toFixed(2)}</span>
                   </>
                 )}
               </button>

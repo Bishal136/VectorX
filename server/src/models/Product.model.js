@@ -624,19 +624,13 @@ productSchema.statics.bulkUpdateStock = async function(updates) {
 
 // Virtual for formatted price
 productSchema.virtual('formattedPrice').get(function() {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(this.price);
+  return `৳${Number(this.price || 0).toLocaleString()}`;
 });
 
 // Virtual for formatted compare price
 productSchema.virtual('formattedComparePrice').get(function() {
   if (!this.comparePrice) return null;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(this.comparePrice);
+  return `৳${Number(this.comparePrice || 0).toLocaleString()}`;
 });
 
 // Virtual for rating percentage (for display)

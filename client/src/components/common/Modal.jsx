@@ -64,23 +64,23 @@ const Modal = ({ open, onClose, title, children }) => {
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
     >
       <div
         ref={modalRef}
-        className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col"
+        className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col mx-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150"
       >
         {title && (
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-            <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
+          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4 shrink-0">
+            <h2 id="modal-title" className="text-base sm:text-lg font-semibold text-gray-900 truncate pr-2">
               {title}
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded"
+              className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded p-1"
               aria-label="Close modal"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,7 +89,7 @@ const Modal = ({ open, onClose, title, children }) => {
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+        <div className="flex-1 overflow-y-auto px-4 py-3.5 sm:px-6 sm:py-4">{children}</div>
       </div>
     </div>,
     document.body

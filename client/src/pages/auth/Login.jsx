@@ -113,7 +113,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-white">
+    <div className="flex bg-white">
       {/* Left: form panel */}
       <div className="w-full lg:w-[45%] flex items-center justify-center px-6 py-12 sm:px-12">
         <div className="w-full max-w-sm">

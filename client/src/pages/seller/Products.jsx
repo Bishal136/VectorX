@@ -14,12 +14,10 @@ import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
 
 const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return `৳${Number(amount || 0).toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format(amount || 0);
+  })}`;
 };
 
 const initialFormData = {
@@ -515,7 +513,7 @@ const Products = () => {
 
             <div>
               <Input
-                label="Price ($)"
+                label="Price (৳)"
                 type="number"
                 step="0.01"
                 min="0"
@@ -531,7 +529,7 @@ const Products = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <Input
-                label="Compare At ($)"
+                label="Compare At (৳)"
                 type="number"
                 step="0.01"
                 min="0"

@@ -10,12 +10,10 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 
 const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return `৳${Number(amount || 0).toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format(amount || 0);
+  })}`;
 };
 
 const formatDate = (dateString) => {

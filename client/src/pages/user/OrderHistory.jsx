@@ -28,7 +28,6 @@ import {
   FileText,
   Store,
   Calendar,
-  DollarSign,
   ArrowRight,
   Printer,
   RotateCcw,
