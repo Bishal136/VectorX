@@ -4,7 +4,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 export const paymentApi = createApi({
   reducerPath: 'paymentApi',
   baseQuery: fetchBaseQuery({
-    baseUrl: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+    baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
     prepareHeaders: (headers, { getState }) => {
       const token = getState().auth.token;
       if (token) headers.set('Authorization', `Bearer ${token}`);
