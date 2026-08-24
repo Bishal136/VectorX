@@ -97,6 +97,40 @@ export const setDefaultAddress = createAsyncThunk(
   }
 );
 
+// Upload avatar
+export const uploadAvatar = createAsyncThunk(
+  'user/uploadAvatar',
+  async (file, { rejectWithValue }) => {
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const response = await axiosInstance.post('/users/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data.data; // { avatar: { url, publicId } }
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Avatar upload failed');
+    }
+  }
+);
+
+// Upload banner
+export const uploadBanner = createAsyncThunk(
+  'user/uploadBanner',
+  async (file, { rejectWithValue }) => {
+    try {
+      const formData = new FormData();
+      formData.append('banner', file);
+      const response = await axiosInstance.post('/users/banner', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data.data; // { banner: { url, publicId } }
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Banner upload failed');
+    }
+  }
+);
+
 // ----- Wishlist -----
 
 // Get wishlist
@@ -269,6 +303,24 @@ const userSlice = createSlice({
         state.error = null;
       })
       .addCase(setDefaultAddress.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+
+      // ----- Avatar -----
+      .addCase(uploadAvatar.fulfilled, (state, action) => {
+        if (state.profile) state.profile.avatar = action.payload.avatar;
+        state.error = null;
+      })
+      .addCase(uploadAvatar.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+
+      // ----- Banner -----
+      .addCase(uploadBanner.fulfilled, (state, action) => {
+        if (state.profile) state.profile.banner = action.payload.banner;
+        state.error = null;
+      })
+      .addCase(uploadBanner.rejected, (state, action) => {
         state.error = action.payload;
       })
 

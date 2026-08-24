@@ -12,11 +12,14 @@ const {
   updateOrderStatus,
   getSellerProfile,
   updateSellerProfile,
-  getSellerEarnings
+  getSellerEarnings,
+  uploadProductImage,
+  uploadProductVideo
 } = require('../controllers/seller.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
 const { isSeller, isVerifiedSeller } = require('../middlewares/role.middleware');
 const { validate } = require('../middlewares/validate.middleware');
+const { uploadSingle, uploadSingleVideo } = require('../middlewares/upload.middleware');
 const Joi = require('joi');
 const Seller = require('../models/Seller.model');
 
@@ -42,6 +45,27 @@ const registerSellerSchema = Joi.object({
   }).optional()
 });
 
+const variantOptionSchema = Joi.object({
+  value: Joi.string().required(),
+  price: Joi.number().min(0).optional().allow(null, ''),
+  stock: Joi.number().min(0).default(0).optional(),
+  sku: Joi.string().optional().allow('')
+});
+
+const variantSchema = Joi.object({
+  name: Joi.string().required(),
+  options: Joi.array().items(variantOptionSchema).required()
+});
+
+const videoSchema = Joi.alternatives().try(
+  Joi.string().allow('', null).optional(),
+  Joi.object({
+    url: Joi.string().allow('', null).optional(),
+    publicId: Joi.string().allow('', null).optional(),
+    thumbnail: Joi.string().allow('', null).optional()
+  }).optional().allow(null)
+).optional().allow(null);
+
 const createProductSchema = Joi.object({
   name: Joi.string().required().min(3).max(200),
   description: Joi.string().optional().allow(''),
@@ -54,6 +78,9 @@ const createProductSchema = Joi.object({
     isPrimary: Joi.boolean().optional(),
     alt: Joi.string().optional().allow('')
   })).optional(),
+  video: videoSchema,
+  hasVariants: Joi.boolean().optional(),
+  variants: Joi.array().items(variantSchema).optional().allow(null),
   stock: Joi.number().default(0).min(0),
   lowStockThreshold: Joi.number().default(5).min(0),
   isActive: Joi.boolean().optional()
@@ -71,13 +98,24 @@ const updateProductSchema = Joi.object({
     isPrimary: Joi.boolean().optional(),
     alt: Joi.string().optional().allow('')
   })).optional(),
+  video: videoSchema,
+  hasVariants: Joi.boolean().optional(),
+  variants: Joi.array().items(variantSchema).optional().allow(null),
   stock: Joi.number().min(0).optional(),
   lowStockThreshold: Joi.number().min(0).optional(),
   isActive: Joi.boolean().optional()
 });
 
 const updateOrderStatusSchema = Joi.object({
-  status: Joi.string().valid('Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded').required()
+  status: Joi.string()
+    .valid(
+      'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded',
+      'pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'
+    )
+    .required(),
+  notes: Joi.string().optional().allow(''),
+  trackingNumber: Joi.string().optional().allow(''),
+  carrier: Joi.string().optional().allow('')
 });
 
 const updateSellerProfileSchema = Joi.object({
@@ -128,22 +166,25 @@ const checkSellerExists = async (req, res, next) => {
 // All seller routes require authentication and seller role
 router.use(verifyToken);
 
-
 // Seller registration and profile
 router.post('/register', validate(registerSellerSchema), registerSeller);
-router.get('/profile',checkSellerExists, getSellerProfile);
-router.put('/profile',checkSellerExists, validate(updateSellerProfileSchema), updateSellerProfile);
+router.get('/profile', checkSellerExists, getSellerProfile);
+router.put('/profile', checkSellerExists, validate(updateSellerProfileSchema), updateSellerProfile);
 
 router.use(isSeller);
 
 // Dashboard
-router.get('/dashboard',checkSellerExists, getDashboardStats);
+router.get('/dashboard', checkSellerExists, getDashboardStats);
 
 // Earnings
-router.get('/earnings',checkSellerExists, getSellerEarnings);
+router.get('/earnings', checkSellerExists, getSellerEarnings);
 
 // Product management - all product routes require verified seller
 router.use(isVerifiedSeller);
+
+// Media uploads
+router.post('/upload/image', uploadSingle('image'), uploadProductImage);
+router.post('/upload/video', uploadSingleVideo('video'), uploadProductVideo);
 
 router.get('/products', getSellerProducts);
 router.post('/products', validate(createProductSchema), createProduct);

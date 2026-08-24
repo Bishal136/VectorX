@@ -9,6 +9,7 @@ const {
   getRelatedProducts,
   getProductsBySeller,
   submitReview,
+  checkCanReview,
   getProductReviews,
   reportReview,
   markReviewHelpful
@@ -27,13 +28,8 @@ const reviewSchema = Joi.object({
   rating: Joi.number().min(1).max(5).required(),
   title: Joi.string().max(100).allow(''),
   comment: Joi.string().max(500).allow(''),
-  orderId: Joi.string().required(),
-  images: Joi.array().items(
-    Joi.object({
-      url: Joi.string().uri(),
-      publicId: Joi.string()
-    })
-  )
+  orderId: Joi.string().optional().allow('', null),
+  images: Joi.array().items(Joi.string()).optional()
 });
 
 const productQuerySchema = Joi.object({
@@ -129,6 +125,18 @@ router.get(
 );
 
 // ==================== Protected Routes (User) ====================
+
+/**
+ * @route   GET /api/products/:id/can-review
+ * @desc    Check if authenticated user is a verified buyer who can review
+ * @access  Private (User)
+ */
+router.get(
+  '/:id/can-review',
+  verifyToken,
+  isUser,
+  checkCanReview
+);
 
 /**
  * @route   POST /api/products/:id/reviews

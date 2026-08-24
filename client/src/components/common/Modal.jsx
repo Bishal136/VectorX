@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
-const Modal = ({ open, onClose, title, children }) => {
+const Modal = ({ open, onClose, title, size = 'md', children }) => {
   const overlayRef = useRef();
   const modalRef = useRef();
 
@@ -60,6 +60,15 @@ const Modal = ({ open, onClose, title, children }) => {
 
   if (!open) return null;
 
+  const sizeClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+    xl: 'max-w-3xl',
+    '2xl': 'max-w-4xl',
+    '3xl': 'max-w-5xl',
+  }[size] || 'max-w-lg';
+
   return createPortal(
     <div
       ref={overlayRef}
@@ -71,7 +80,7 @@ const Modal = ({ open, onClose, title, children }) => {
     >
       <div
         ref={modalRef}
-        className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col mx-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className={`bg-white rounded-xl shadow-2xl ${sizeClasses} w-full max-h-[92vh] flex flex-col mx-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150`}
       >
         {title && (
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4 shrink-0">

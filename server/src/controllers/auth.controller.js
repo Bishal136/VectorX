@@ -600,6 +600,50 @@ const checkRole = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Change password for authenticated user
+// @route   POST /api/auth/change-password
+// @access  Private
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    throw new ApiError(400, 'Current password and new password are required');
+  }
+
+  if (confirmPassword && newPassword !== confirmPassword) {
+    throw new ApiError(400, 'New passwords do not match');
+  }
+
+  if (newPassword.length < 6) {
+    throw new ApiError(400, 'New password must be at least 6 characters long');
+  }
+
+  if (currentPassword === newPassword) {
+    throw new ApiError(400, 'New password cannot be the same as the current password');
+  }
+
+  // Find user with password
+  const user = await User.findById(req.user.id).select('+password');
+  if (!user) {
+    throw new ApiError(404, 'User not found');
+  }
+
+  // Verify current password
+  const isMatch = await user.matchPassword(currentPassword);
+  if (!isMatch) {
+    throw new ApiError(400, 'Current password is incorrect');
+  }
+
+  // Update password
+  user.password = newPassword;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Password changed successfully'
+  });
+});
+
 module.exports = {
   register,
   verifyOTPController,
@@ -610,6 +654,7 @@ module.exports = {
   logout,
   forgotPassword,
   resetPassword,
+  changePassword,
   resendOTP,
   getProfile,
   checkRole,

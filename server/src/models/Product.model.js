@@ -196,6 +196,25 @@ const productSchema = new mongoose.Schema({
   
   // Images
   images: [productImageSchema],
+
+  // Video
+  video: {
+    url: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    publicId: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    thumbnail: {
+      type: String,
+      trim: true,
+      default: null
+    }
+  },
   
   // Seller Information
   sellerId: {

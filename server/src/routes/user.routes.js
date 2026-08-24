@@ -2,7 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const {
- 
+  uploadAvatar,
+  uploadBanner,
   getProfile,
   updateProfile,
   updateLocation,
@@ -22,6 +23,7 @@ const {
   clearCart
 } = require('../controllers/user.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
+const { uploadSingle } = require('../middlewares/upload.middleware');
 
 // All user routes require authentication
 router.use(verifyToken);
@@ -29,6 +31,10 @@ router.use(verifyToken);
 // Profile management
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
+
+// Avatar & Banner upload
+router.post('/avatar', uploadSingle('avatar'), uploadAvatar);
+router.post('/banner', uploadSingle('banner'), uploadBanner);
 
 // Location management
 router.put('/location', updateLocation);
@@ -41,7 +47,6 @@ router.delete('/addresses/:addressId', removeAddress);
 router.put('/addresses/:addressId/default', setDefaultAddress);
 
 // Order management
-
 router.get('/orders', getOrders);
 router.get('/orders/:orderId', getOrderDetails);
 

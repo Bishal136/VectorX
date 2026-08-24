@@ -6,6 +6,8 @@ const Product = require('../models/Product.model');
 const { Order } = require('../models/Order.model');
 const User = require('../models/User.model');
 const productService = require('../services/product.service');
+const { uploadProductImage: uploadProdImg, uploadProductVideo: uploadProdVid } = require('../config/cloudinary');
+const fs = require('fs');
 
 /**
  * Register as a seller (create seller profile)
@@ -262,6 +264,51 @@ const updateProduct = asyncHandler(async (req, res) => {
   delete req.body.sellerId;
   delete req.body.location;
 
+  if (req.body.video !== undefined) {
+    if (typeof req.body.video === 'string' && req.body.video.trim()) {
+      product.video = {
+        url: req.body.video.trim(),
+        publicId: `vid_${Date.now()}`,
+        thumbnail: null
+      };
+    } else if (req.body.video && typeof req.body.video === 'object' && req.body.video.url) {
+      product.video = {
+        url: req.body.video.url.trim(),
+        publicId: req.body.video.publicId || `vid_${Date.now()}`,
+        thumbnail: req.body.video.thumbnail || null
+      };
+    } else {
+      product.video = { url: null, publicId: null, thumbnail: null };
+    }
+    product.markModified('video');
+    delete req.body.video;
+  }
+
+  if (Array.isArray(req.body.images)) {
+    product.images = req.body.images
+      .map((img, idx) => {
+        if (typeof img === 'string' && img.trim()) {
+          return {
+            url: img.trim(),
+            isPrimary: idx === 0,
+            publicId: `img_${Date.now()}_${idx}`
+          };
+        }
+        if (img && typeof img === 'object' && img.url) {
+          return {
+            url: img.url,
+            isPrimary: img.isPrimary !== undefined ? img.isPrimary : idx === 0,
+            publicId: img.publicId || `img_${Date.now()}_${idx}`,
+            alt: img.alt || ''
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+    product.markModified('images');
+    delete req.body.images;
+  }
+
   Object.assign(product, req.body);
   await product.save();
   await product.populate('category', 'name slug');
@@ -347,11 +394,20 @@ const getSellerOrders = asyncHandler(async (req, res) => {
  */
 const updateOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, notes, trackingNumber, cancellationReason } = req.body;
 
-  const validStatuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'];
-  if (!validStatuses.includes(status)) {
-    throw new ApiError(400, 'Invalid order status');
+  const validStatusesMap = {
+    'pending': 'Pending',
+    'processing': 'Processing',
+    'shipped': 'Shipped',
+    'delivered': 'Delivered',
+    'cancelled': 'Cancelled',
+    'refunded': 'Refunded'
+  };
+
+  const normalizedStatus = validStatusesMap[String(status || '').toLowerCase().trim()];
+  if (!normalizedStatus) {
+    throw new ApiError(400, 'Invalid order status. Allowed: Pending, Processing, Shipped, Delivered, Cancelled, Refunded');
   }
 
   const seller = await Seller.findOne({ user: req.user.id });
@@ -368,29 +424,37 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Order not found or unauthorized');
   }
 
-  const currentStatus = order.status;
-  const transitions = {
-    'Pending': ['Processing', 'Cancelled'],
-    'Processing': ['Shipped', 'Cancelled'],
-    'Shipped': ['Delivered', 'Cancelled'],
-    'Delivered': ['Refunded'],
-    'Cancelled': [],
-    'Refunded': []
-  };
+  // Update status
+  order.status = normalizedStatus;
 
-  if (!transitions[currentStatus]?.includes(status)) {
-    throw new ApiError(400, `Invalid status transition from ${currentStatus} to ${status}`);
+  // Handle specific status side-effects
+  if (normalizedStatus === 'Delivered') {
+    order.deliveryDate = new Date();
+    if (order.paymentMethod === 'COD' && order.paymentStatus === 'pending') {
+      order.paymentStatus = 'paid';
+    }
+  } else if (normalizedStatus === 'Shipped') {
+    if (trackingNumber) {
+      order.trackingNumber = trackingNumber.trim();
+    }
+  } else if (normalizedStatus === 'Cancelled') {
+    if (cancellationReason || notes) {
+      order.cancellationReason = (cancellationReason || notes).trim();
+    }
   }
 
-  order.status = status;
+  if (notes) {
+    order.notes = notes.trim();
+  }
+
   await order.save();
   await order.populate('userId', 'name email phone');
-  await order.populate('items.productId', 'name images');
+  await order.populate('items.productId', 'name images price');
 
   res.json({
     success: true,
     data: order,
-    message: `Order status updated to ${status}`
+    message: `Order status updated to ${normalizedStatus}`
   });
 });
 
@@ -593,6 +657,63 @@ const getSellerEarnings = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Upload product image for sellers
+ * POST /api/sellers/upload/image
+ */
+const uploadProductImage = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'No image file provided');
+  }
+
+  const result = await uploadProdImg(req.file.path);
+
+  if (req.file.path && fs.existsSync(req.file.path)) {
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  res.json({
+    success: true,
+    data: {
+      url: result.url,
+      publicId: result.publicId
+    }
+  });
+});
+
+/**
+ * Upload product video for sellers
+ * POST /api/sellers/upload/video
+ */
+const uploadProductVideo = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'No video file provided');
+  }
+
+  const result = await uploadProdVid(req.file.path);
+
+  if (req.file.path && fs.existsSync(req.file.path)) {
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  res.json({
+    success: true,
+    data: {
+      url: result.url,
+      publicId: result.publicId,
+      thumbnail: result.thumbnail
+    }
+  });
+});
+
 module.exports = {
   registerSeller,
   getDashboardStats,
@@ -604,5 +725,7 @@ module.exports = {
   updateOrderStatus,
   getSellerProfile,
   updateSellerProfile,
-  getSellerEarnings
+  getSellerEarnings,
+  uploadProductImage,
+  uploadProductVideo
 };

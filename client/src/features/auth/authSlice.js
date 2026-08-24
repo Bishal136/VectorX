@@ -123,6 +123,23 @@ export const resetPassword = createAsyncThunk(
   }
 );
 
+// 8. Change Password (authenticated)
+export const changePassword = createAsyncThunk(
+  'auth/changePassword',
+  async ({ currentPassword, newPassword, confirmPassword }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post('/auth/change-password', {
+        currentPassword,
+        newPassword,
+        confirmPassword,
+      });
+      return response.data.message;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Password change failed');
+    }
+  }
+);
+
 // 8. Google OAuth – the redirect happens via window.location, so we need a separate action to handle the callback
 export const handleGoogleCallback = createAsyncThunk(
   'auth/googleCallback',

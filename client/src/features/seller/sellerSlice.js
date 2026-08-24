@@ -143,9 +143,14 @@ export const fetchSellerOrders = createAsyncThunk(
 
 export const updateOrderStatus = createAsyncThunk(
   'seller/updateOrderStatus',
-  async ({ orderId, status }, { rejectWithValue }) => {
+  async ({ orderId, status, notes, trackingNumber, cancellationReason }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.put(`/sellers/orders/${orderId}/status`, { status });
+      const response = await axiosInstance.put(`/sellers/orders/${orderId}/status`, {
+        status,
+        notes,
+        trackingNumber,
+        cancellationReason
+      });
       return response.data.data?.order || response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update order status');

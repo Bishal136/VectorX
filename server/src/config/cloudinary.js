@@ -273,6 +273,45 @@ const isCloudinaryUrl = (url) => {
   return url && url.includes(`res.cloudinary.com/${cloudName}`);
 };
 
+/**
+ * Upload product video to Cloudinary
+ * @param {string} filePath - File path or base64 data URI
+ * @param {string} productId - Product ID for folder organization
+ * @returns {Promise<Object>} - Upload result with URL, publicId, and thumbnail
+ */
+const uploadProductVideo = async (filePath, productId = null) => {
+  try {
+    const folder = productId 
+      ? `vectorx/products/${productId}/videos` 
+      : 'vectorx/products/videos';
+
+    const result = await cloudinary.uploader.upload(filePath, {
+      folder,
+      resource_type: 'video',
+      chunk_size: 6000000,
+    });
+
+    const thumbnail = cloudinary.url(`${result.public_id}.jpg`, {
+      resource_type: 'video',
+      transformation: [
+        { width: 600, height: 400, crop: 'fill', quality: 'auto' }
+      ]
+    });
+
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+      thumbnail: thumbnail || null,
+      duration: result.duration || 0,
+      format: result.format,
+      bytes: result.bytes
+    };
+  } catch (error) {
+    console.error('Cloudinary video upload error:', error);
+    throw new ApiError(500, 'Failed to upload video to Cloudinary');
+  }
+};
+
 module.exports = {
   cloudinary,
   uploadFile,
@@ -282,6 +321,7 @@ module.exports = {
   getOptimizedUrl,
   getThumbnailUrl,
   uploadProductImage,
+  uploadProductVideo,
   uploadUserAvatar,
   uploadShopLogo,
   getSignedUploadUrl,

@@ -6,10 +6,103 @@ const Cart = require('../models/Cart.model');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const { validateCoordinates } = require('../services/geo.service');
+const { uploadFile, deleteFile } = require('../config/cloudinary');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const fs = require('fs');
+
+// ==================== Avatar & Banner Upload ====================
+
+// @desc    Upload user profile avatar
+// @route   POST /api/users/avatar
+// @access  Private
+const uploadAvatar = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'No image file provided');
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) throw new ApiError(404, 'User not found');
+
+  // Delete old avatar from Cloudinary if it exists
+  if (user.avatar?.publicId) {
+    try {
+      await deleteFile(user.avatar.publicId);
+    } catch {
+      // non-fatal — continue even if old delete fails
+    }
+  }
+
+  // Upload new avatar
+  const result = await uploadFile(req.file.path, {
+    folder: `vectorx/users/${user._id}/avatar`,
+    transformation: [
+      { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+      { quality: 'auto', fetch_format: 'auto' },
+    ],
+  });
+
+  // Remove temp file from disk
+  if (req.file.path && fs.existsSync(req.file.path)) {
+    fs.unlinkSync(req.file.path);
+  }
+
+  user.avatar = { url: result.secure_url, publicId: result.public_id };
+  await user.save();
+
+  res.json({
+    success: true,
+    message: 'Avatar uploaded successfully',
+    data: { avatar: user.avatar },
+  });
+});
+
+// @desc    Upload user profile banner
+// @route   POST /api/users/banner
+// @access  Private
+const uploadBanner = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'No image file provided');
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) throw new ApiError(404, 'User not found');
+
+  // Delete old banner from Cloudinary if it exists
+  if (user.banner?.publicId) {
+    try {
+      await deleteFile(user.banner.publicId);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  // Upload new banner (wide landscape crop)
+  const result = await uploadFile(req.file.path, {
+    folder: `vectorx/users/${user._id}/banner`,
+    transformation: [
+      { width: 1500, height: 400, crop: 'fill', gravity: 'auto' },
+      { quality: 'auto', fetch_format: 'auto' },
+    ],
+  });
+
+  // Remove temp file from disk
+  if (req.file.path && fs.existsSync(req.file.path)) {
+    fs.unlinkSync(req.file.path);
+  }
+
+  user.banner = { url: result.secure_url, publicId: result.public_id };
+  await user.save();
+
+  res.json({
+    success: true,
+    message: 'Banner uploaded successfully',
+    data: { banner: user.banner },
+  });
+});
 
 // ==================== Profile Management ====================
+
 
 // @desc    Get logged-in user's profile
 // @route   GET /api/users/profile
@@ -73,7 +166,9 @@ const updateProfile = asyncHandler(async (req, res) => {
       role: user.role,
       isVerified: user.isVerified,
       location: user.location,
-      addresses: user.addresses
+      addresses: user.addresses,
+      avatar: user.avatar,
+      banner: user.banner
     }
   });
 });
@@ -629,6 +724,10 @@ const clearCart = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  // Avatar & Banner
+  uploadAvatar,
+  uploadBanner,
+
   // Profile
   getProfile,
   updateProfile,

@@ -243,6 +243,8 @@ const getProducts = asyncHandler(async (req, res) => {
         shopName: product.sellerId?.shopName || 'Unknown Seller',
         sellerVerified: product.sellerId?.isVerified || false,
         distanceKm: product.distanceKm !== undefined ? product.distanceKm : (product.distance ? (product.distance / 1000) : 0),
+        video: product.video || null,
+        variants: product.variants || [],
         hasVariants: product.hasVariants || false,
         isFeatured: product.isFeatured || false,
         createdAt: product.createdAt
@@ -325,6 +327,7 @@ const getProductById = asyncHandler(async (req, res) => {
     primaryImage: product.getPrimaryImage ?
       product.getPrimaryImage() :
       (product.images && product.images.length > 0 ? product.images[0] : null),
+    video: product.video || null,
     category: product.category,
     subCategory: product.subCategory,
     tags: product.tags || [],
@@ -399,6 +402,8 @@ const getRelatedProducts = asyncHandler(async (req, res) => {
       Math.round(((p.comparePrice - p.price) / p.comparePrice) * 100) : 0,
     images: p.images || [],
     primaryImage: p.images && p.images.length > 0 ? p.images[0] : null,
+    video: p.video || null,
+    variants: p.variants || [],
     rating: p.rating || { average: 0, count: 0 },
     stock: p.stock,
     shopName: p.sellerId?.shopName || 'Unknown Seller',
@@ -462,6 +467,8 @@ const getProductsBySeller = asyncHandler(async (req, res) => {
       Math.round(((p.comparePrice - p.price) / p.comparePrice) * 100) : 0,
     images: p.images || [],
     primaryImage: p.images && p.images.length > 0 ? p.images[0] : null,
+    video: p.video || null,
+    variants: p.variants || [],
     stock: p.stock,
     lowStockThreshold: p.lowStockThreshold || 5,
     isInStock: p.stock > 0,
@@ -517,32 +524,35 @@ const submitReview = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Product not found');
   }
 
-  // Verify order exists and is delivered
-  const order = await Order.findOne({
-    _id: orderId,
+  // Verify order exists and is delivered (or Completed)
+  let orderQuery = {
     userId: userId,
     'items.productId': product._id,
-    status: ORDER_STATUS.DELIVERED
-  });
-
-  if (!order) {
-    throw new ApiError(403, 'You can only review products from delivered orders');
+    status: { $in: [ORDER_STATUS.DELIVERED, 'Delivered', 'Completed'] }
+  };
+  if (orderId && mongoose.Types.ObjectId.isValid(orderId)) {
+    orderQuery._id = orderId;
   }
 
-  // Check if user already reviewed this product from this order
+  const order = await Order.findOne(orderQuery);
+
+  if (!order) {
+    throw new ApiError(403, 'Only verified buyers who have received this product can submit a review.');
+  }
+
+  // Check if user already reviewed this product
   const existingReview = product.reviews.find(
-    r => r.userId.toString() === userId.toString() &&
-      r.orderId.toString() === orderId.toString()
+    r => r.userId && r.userId.toString() === userId.toString()
   );
 
   if (existingReview) {
-    throw new ApiError(400, 'You have already reviewed this product for this order');
+    throw new ApiError(400, 'You have already reviewed this product.');
   }
 
   // Add review
   const reviewData = {
     userId,
-    orderId,
+    orderId: order._id,
     rating,
     title: title || '',
     comment: comment || '',
@@ -562,8 +572,8 @@ const submitReview = asyncHandler(async (req, res) => {
   // Mark order as reviewed if all products are reviewed
   const allItems = order.items.map(item => item.productId.toString());
   const reviewedItems = product.reviews
-    .filter(r => r.orderId.toString() === orderId.toString())
-    .map(r => r.productId.toString());
+    .filter(r => r.orderId && r.orderId.toString() === order._id.toString())
+    .map(r => r.productId ? r.productId.toString() : '');
 
   const allReviewed = allItems.every(itemId => reviewedItems.includes(itemId));
 
@@ -580,17 +590,50 @@ const submitReview = asyncHandler(async (req, res) => {
         rating: newReview.rating,
         title: newReview.title,
         comment: newReview.comment,
-        images: newReview.images,
         isVerifiedPurchase: newReview.isVerifiedPurchase,
-        createdAt: newReview.createdAt,
-        user: {
-          id: req.user.id,
-          name: req.user.name
-        }
-      },
-      productRating: product.rating
+        createdAt: newReview.createdAt
+      }
     },
     message: 'Review submitted successfully'
+  });
+});
+
+/**
+ * Check if logged-in user can review a product
+ * GET /api/products/:id/can-review
+ */
+const checkCanReview = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  const isObjectId = mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id);
+  const product = isObjectId ? await Product.findById(id) : await Product.findOne({ slug: id });
+  if (!product) {
+    throw new ApiError(404, 'Product not found');
+  }
+
+  // Check if user has a delivered order for this product
+  const order = await Order.findOne({
+    userId: userId,
+    'items.productId': product._id,
+    status: { $in: [ORDER_STATUS.DELIVERED, 'Delivered', 'Completed'] }
+  });
+
+  const hasPurchased = Boolean(order);
+  const alreadyReviewed = Boolean(
+    product.reviews?.some(
+      r => r.userId && r.userId.toString() === userId.toString()
+    )
+  );
+
+  res.json({
+    success: true,
+    data: {
+      canReview: hasPurchased && !alreadyReviewed,
+      hasPurchased,
+      alreadyReviewed,
+      orderId: order?._id || null
+    }
   });
 });
 
@@ -724,6 +767,7 @@ module.exports = {
   getRelatedProducts,
   getProductsBySeller,
   submitReview,
+  checkCanReview,
   getProductReviews,
   reportReview,
   markReviewHelpful

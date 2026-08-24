@@ -66,10 +66,27 @@ class ProductService {
         .filter(Boolean);
     }
 
+    // Normalize video
+    let normalizedVideo = { url: null, publicId: null, thumbnail: null };
+    if (typeof productData.video === 'string' && productData.video.trim()) {
+      normalizedVideo = {
+        url: productData.video.trim(),
+        publicId: `vid_${Date.now()}`,
+        thumbnail: null
+      };
+    } else if (productData.video && typeof productData.video === 'object' && productData.video.url) {
+      normalizedVideo = {
+        url: productData.video.url.trim(),
+        publicId: productData.video.publicId || `vid_${Date.now()}`,
+        thumbnail: productData.video.thumbnail || null
+      };
+    }
+
     // Prepare product data
     const productDataToSave = {
       ...productData,
       images: normalizedImages,
+      video: normalizedVideo,
       sellerId: seller._id,
       location: {
         type: 'Point',
@@ -121,6 +138,22 @@ class ProductService {
             return null;
           })
           .filter(Boolean);
+      } else if (key === 'video') {
+        if (typeof updateData.video === 'string' && updateData.video.trim()) {
+          product.video = {
+            url: updateData.video.trim(),
+            publicId: `vid_${Date.now()}`,
+            thumbnail: null
+          };
+        } else if (updateData.video && typeof updateData.video === 'object' && updateData.video.url) {
+          product.video = {
+            url: updateData.video.url.trim(),
+            publicId: updateData.video.publicId || `vid_${Date.now()}`,
+            thumbnail: updateData.video.thumbnail || null
+          };
+        } else {
+          product.video = { url: null, publicId: null, thumbnail: null };
+        }
       } else if (key !== 'sellerId' && key !== 'location') {
         product[key] = updateData[key];
       }

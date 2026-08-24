@@ -12,6 +12,7 @@ const {
   logout,
   forgotPassword,
   resetPassword,
+  changePassword,
   getProfile,
   checkRole,
   seedAdmin
@@ -59,9 +60,10 @@ router.post('/seed-admin', seedAdmin);
 
 // ==================== Private Routes ====================
 
-// Profile
+// Profile & Security
 router.get('/profile', verifyToken, getProfile);
 router.get('/check-role', verifyToken, checkRole);
+router.post('/change-password', verifyToken, changePassword);
 
 // Logout
 router.post('/logout', verifyToken, logout);
