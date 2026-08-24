@@ -26,6 +26,9 @@ const errorHandler = require('./middlewares/error.middleware');
 // Initialize app
 const app = express();
 
+// Trust reverse proxy (Render, Railway, Heroku, Nginx, AWS, etc.) for HTTPS cookies and secure headers
+app.set('trust proxy', 1);
+
 // Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -33,12 +36,13 @@ app.use(cookieParser());
 
 // Session (required for passport)
 app.use(session({
-  secret: process.env.JWT_SECRET,
+  secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'vectorx-session-secret',
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
