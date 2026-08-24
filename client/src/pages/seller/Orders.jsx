@@ -160,7 +160,7 @@ const Orders = () => {
       {/* Status Filter Tabs & Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-xs space-y-4">
         {/* Search */}
-        <div className="relative max-w-md">
+        <div className="relative w-full">
           <input
             type="text"
             value={searchQuery}
@@ -171,8 +171,8 @@ const Orders = () => {
           <span className="absolute left-3 top-2.5 text-gray-400 text-sm">🔍</span>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-gray-100">
+        {/* Filter Tabs — scrollable on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-gray-100 scrollbar-none">
           {statusTabs.map((tab) => (
             <button
               key={tab}
@@ -180,7 +180,7 @@ const Orders = () => {
                 setActiveTab(tab);
                 setCurrentPage(1);
               }}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg capitalize whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize whitespace-nowrap transition-colors ${
                 activeTab === tab
                   ? 'bg-indigo-600 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -192,7 +192,7 @@ const Orders = () => {
         </div>
       </div>
 
-      {/* Orders List / Table */}
+      {/* Orders List */}
       <div className="space-y-4">
         {status === 'loading' && orders.length === 0 ? (
           <div className="bg-white rounded-xl p-12 text-center text-gray-400 border">
@@ -212,59 +212,64 @@ const Orders = () => {
                 key={order._id}
                 className="bg-white rounded-xl border border-gray-200/80 shadow-xs overflow-hidden transition-all"
               >
-                {/* Order Summary Header Card */}
-                <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-gray-900 text-base">
-                        Order #{order._id?.slice(-8).toUpperCase()}
-                      </span>
-                      <Badge tone={getStatusTone(order.status)}>
-                        {order.status}
-                      </Badge>
-                      <span className="text-xs text-gray-400">
-                        {formatDate(order.createdAt)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600">
-                      Customer: <strong className="text-gray-800">{order.userId?.name || 'Anonymous User'}</strong> ({order.userId?.email || 'N/A'})
-                    </p>
+                {/* Order Summary Header */}
+                <div className="p-4 sm:p-5">
+                  {/* Top row: order ID + badge + date */}
+                  <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                    <span className="font-bold text-gray-900 text-sm sm:text-base">
+                      Order #{order._id?.slice(-8).toUpperCase()}
+                    </span>
+                    <Badge tone={getStatusTone(order.status)}>
+                      {order.status}
+                    </Badge>
+                    <span className="text-xs text-gray-400 ml-auto">
+                      {formatDate(order.createdAt)}
+                    </span>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="text-right mr-2">
+                  {/* Customer info */}
+                  <p className="text-xs text-gray-600 truncate">
+                    Customer:{' '}
+                    <strong className="text-gray-800">
+                      {order.userId?.name || 'Anonymous User'}
+                    </strong>{' '}
+                    <span className="hidden sm:inline">({order.userId?.email || 'N/A'})</span>
+                  </p>
+
+                  {/* Bottom row: total + actions */}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
                       <span className="text-xs text-gray-400 block">Total Amount</span>
-                      <span className="text-lg font-bold text-gray-900">
+                      <span className="text-base font-bold text-gray-900">
                         {formatCurrency(order.totalAmount)}
                       </span>
                     </div>
 
-                    {/* Status Update Button if transitions exist */}
-                    {possibleTransitions.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {possibleTransitions.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => handleOpenStatusModal(order)}
+                        >
+                          Update Status
+                        </Button>
+                      )}
                       <Button
                         size="sm"
-                        variant="primary"
-                        onClick={() => handleOpenStatusModal(order)}
+                        variant="secondary"
+                        onClick={() => toggleExpand(order._id)}
                       >
-                        Update Status
+                        {isExpanded ? 'Hide ▲' : 'Details ▼'}
                       </Button>
-                    )}
-
-                    {/* Expand / Collapse Details Button */}
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => toggleExpand(order._id)}
-                    >
-                      {isExpanded ? 'Hide Details ▲' : 'View Details ▼'}
-                    </Button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Expandable Order Details Section */}
+                {/* Expandable Order Details */}
                 {isExpanded && (
-                  <div className="bg-gray-50/70 p-5 border-t border-gray-100 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50/70 p-4 sm:p-5 border-t border-gray-100 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Shipping Info */}
                       <div>
                         <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
@@ -293,7 +298,10 @@ const Orders = () => {
                         </h4>
                         <div className="text-xs text-gray-700 bg-white p-3 rounded-lg border border-gray-200/70 space-y-1">
                           <p>
-                            Payment Method: <span className="font-medium uppercase">{order.paymentMethod || 'Online'}</span>
+                            Payment Method:{' '}
+                            <span className="font-medium uppercase">
+                              {order.paymentMethod || 'Online'}
+                            </span>
                           </p>
                           <p>
                             Payment Status:{' '}
@@ -313,34 +321,34 @@ const Orders = () => {
                       </div>
                     </div>
 
-                    {/* Items Table */}
+                    {/* Items Table — scrollable on mobile */}
                     <div>
                       <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
                         Ordered Items ({order.items?.length || 0})
                       </h4>
-                      <div className="bg-white rounded-lg border border-gray-200/70 overflow-hidden">
+                      <div className="bg-white rounded-lg border border-gray-200/70 overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-100 text-xs">
                           <thead className="bg-gray-50 text-gray-400 uppercase">
                             <tr>
-                              <th className="px-4 py-2 text-left font-medium">Item</th>
-                              <th className="px-4 py-2 text-right font-medium">Price</th>
-                              <th className="px-4 py-2 text-center font-medium">Quantity</th>
-                              <th className="px-4 py-2 text-right font-medium">Subtotal</th>
+                              <th className="px-3 sm:px-4 py-2 text-left font-medium">Item</th>
+                              <th className="px-3 sm:px-4 py-2 text-right font-medium">Price</th>
+                              <th className="px-3 sm:px-4 py-2 text-center font-medium">Qty</th>
+                              <th className="px-3 sm:px-4 py-2 text-right font-medium">Subtotal</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100 text-gray-700">
                             {order.items?.map((item, idx) => (
                               <tr key={idx}>
-                                <td className="px-4 py-2.5 font-medium text-gray-900">
+                                <td className="px-3 sm:px-4 py-2.5 font-medium text-gray-900 max-w-[140px] sm:max-w-none truncate">
                                   {item.name}
                                 </td>
-                                <td className="px-4 py-2.5 text-right">
+                                <td className="px-3 sm:px-4 py-2.5 text-right whitespace-nowrap">
                                   {formatCurrency(item.price)}
                                 </td>
-                                <td className="px-4 py-2.5 text-center font-bold">
+                                <td className="px-3 sm:px-4 py-2.5 text-center font-bold">
                                   {item.quantity}
                                 </td>
-                                <td className="px-4 py-2.5 text-right font-bold text-gray-900">
+                                <td className="px-3 sm:px-4 py-2.5 text-right font-bold text-gray-900 whitespace-nowrap">
                                   {formatCurrency((item.price || 0) * (item.quantity || 1))}
                                 </td>
                               </tr>
@@ -370,7 +378,7 @@ const Orders = () => {
                 disabled={currentPage <= 1}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               >
-                Previous
+                Prev
               </Button>
               <Button
                 variant="secondary"

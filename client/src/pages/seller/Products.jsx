@@ -262,9 +262,9 @@ const Products = () => {
       )}
 
       {/* Controls & Filter Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-xs flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+      <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-xs flex flex-col gap-4">
         {/* Search */}
-        <div className="relative flex-1 max-w-md">
+        <div className="relative w-full">
           <input
             type="text"
             value={search}
@@ -287,7 +287,7 @@ const Products = () => {
               setCategoryFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="text-sm rounded-lg border border-gray-300 px-3 py-2 bg-white text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+            className="flex-1 min-w-[140px] text-sm rounded-lg border border-gray-300 px-3 py-2 bg-white text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
           >
             <option value="">All Categories</option>
             {categories.map((c) => (
@@ -301,7 +301,7 @@ const Products = () => {
           <select
             value={stockStatusFilter}
             onChange={(e) => setStockStatusFilter(e.target.value)}
-            className="text-sm rounded-lg border border-gray-300 px-3 py-2 bg-white text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+            className="flex-1 min-w-[140px] text-sm rounded-lg border border-gray-300 px-3 py-2 bg-white text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
           >
             <option value="all">All Status</option>
             <option value="active">Active Only</option>
@@ -312,8 +312,8 @@ const Products = () => {
         </div>
       </div>
 
-      {/* Product Table */}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-xs overflow-hidden">
+      {/* ── DESKTOP: Product Table (md and above) ─────────────────────────── */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
             <thead className="bg-gray-50/80 text-gray-500 text-xs font-semibold uppercase tracking-wider">
@@ -451,6 +451,125 @@ const Products = () => {
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               >
                 Previous
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage >= productPagination.totalPages}
+                onClick={() => setCurrentPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── MOBILE: Product Cards (below md) ──────────────────────────────── */}
+      <div className="md:hidden space-y-3">
+        {status === 'loading' && products.length === 0 ? (
+          <div className="bg-white rounded-xl p-10 text-center text-gray-400 border border-gray-200">
+            Loading your catalog...
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="bg-white rounded-xl p-10 text-center text-gray-500 border border-gray-200">
+            No products found matching your filters.
+          </div>
+        ) : (
+          filteredProducts.map((p) => {
+            const isLowStock = p.stock > 0 && p.stock <= (p.lowStockThreshold || 5);
+            const isOutOfStock = p.stock === 0;
+            const primaryImg = p.images?.[0]?.url || 'https://placehold.co/100x100?text=Product';
+
+            return (
+              <div
+                key={p._id}
+                className="bg-white rounded-xl border border-gray-200/80 shadow-xs p-4 flex gap-3"
+              >
+                {/* Product image */}
+                <img
+                  src={primaryImg}
+                  alt={p.name}
+                  className="w-16 h-16 rounded-lg object-cover border border-gray-200 shrink-0 bg-gray-50"
+                  onError={(e) => {
+                    e.target.src = 'https://placehold.co/100x100?text=No+Image';
+                  }}
+                />
+
+                {/* Product info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-gray-900 text-sm leading-tight truncate">
+                      {p.name}
+                    </p>
+                    {/* Active/Inactive toggle */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(p)}
+                      className="cursor-pointer focus:outline-none shrink-0"
+                      title="Click to toggle active status"
+                    >
+                      <Badge tone={p.isActive ? 'success' : 'neutral'}>
+                        {p.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {p.category?.name || 'Uncategorized'}
+                  </p>
+
+                  <div className="mt-2 flex items-center gap-3 flex-wrap">
+                    <span className="font-bold text-gray-900 text-sm">
+                      {formatCurrency(p.price)}
+                    </span>
+                    {p.comparePrice && p.comparePrice > p.price && (
+                      <span className="text-xs text-gray-400 line-through">
+                        {formatCurrency(p.comparePrice)}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-500">
+                      Stock: <strong className="text-gray-800">{p.stock}</strong>
+                    </span>
+                    {isOutOfStock && <Badge tone="danger">Out of Stock</Badge>}
+                    {isLowStock && <Badge tone="warning">Low Stock</Badge>}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenEdit(p)}
+                      className="flex-1 text-center text-indigo-600 font-medium text-xs px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeletingProduct(p)}
+                      className="flex-1 text-center text-red-600 font-medium text-xs px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {/* Mobile Pagination */}
+        {productPagination?.totalPages > 1 && (
+          <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-xs flex items-center justify-between">
+            <span className="text-xs text-gray-500">
+              Page {productPagination.page} of {productPagination.totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                Prev
               </Button>
               <Button
                 variant="secondary"

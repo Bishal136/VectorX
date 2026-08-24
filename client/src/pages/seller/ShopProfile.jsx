@@ -429,8 +429,8 @@ const ShopProfile = () => {
         </div>
 
         {/* Submit Actions */}
-        <div className="flex justify-end gap-4">
-          <Button type="submit" variant="primary" size="lg" loading={actionLoading}>
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+          <Button type="submit" variant="primary" size="lg" loading={actionLoading} className="w-full sm:w-auto">
             Save Changes
           </Button>
         </div>
