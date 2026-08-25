@@ -21,11 +21,12 @@ export const fetchDashboardStats = createAsyncThunk(
 // ----- User Management -----
 export const fetchUsers = createAsyncThunk(
   'admin/fetchUsers',
-  async ({ page = 1, limit = 20, role, isVerified, search } = {}, { rejectWithValue }) => {
+  async ({ page = 1, limit = 20, role, isVerified, isBlocked, search } = {}, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams({ page, limit });
       if (role) params.append('role', role);
-      if (isVerified !== undefined) params.append('isVerified', isVerified);
+      if (isVerified !== undefined && isVerified !== '') params.append('isVerified', isVerified);
+      if (isBlocked !== undefined && isBlocked !== '') params.append('isBlocked', isBlocked);
       if (search) params.append('search', search);
       const response = await axiosInstance.get(`/admin/users?${params}`);
       return response.data; // { data: [], pagination: { page, totalPages, totalResults } }
@@ -182,13 +183,14 @@ export const deleteCategory = createAsyncThunk(
 // ----- Order Management (Admin oversight) -----
 export const fetchAdminOrders = createAsyncThunk(
   'admin/fetchOrders',
-  async ({ page = 1, limit = 20, status, paymentStatus, startDate, endDate } = {}, { rejectWithValue }) => {
+  async ({ page = 1, limit = 20, status, paymentStatus, startDate, endDate, search } = {}, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams({ page, limit });
       if (status) params.append('status', status);
       if (paymentStatus) params.append('paymentStatus', paymentStatus);
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
+      if (search) params.append('search', search);
       const response = await axiosInstance.get(`/admin/orders?${params}`);
       return response.data; // { data: [], pagination: { page, totalPages, totalResults } }
     } catch (error) {
@@ -300,12 +302,18 @@ const adminSlice = createSlice({
       })
 
       // ----- Users -----
+      .addCase(fetchUsers.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
       .addCase(fetchUsers.fulfilled, (state, action) => {
+        state.status = 'succeeded';
         state.users.data = action.payload.data || [];
         state.users.pagination = action.payload.pagination || { page: 1, totalPages: 1, totalResults: 0 };
         state.error = null;
       })
       .addCase(fetchUsers.rejected, (state, action) => {
+        state.status = 'failed';
         state.error = action.payload;
       })
       .addCase(fetchUserDetails.fulfilled, (state, action) => {
@@ -429,12 +437,18 @@ const adminSlice = createSlice({
       })
 
       // ----- Orders -----
+      .addCase(fetchAdminOrders.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
       .addCase(fetchAdminOrders.fulfilled, (state, action) => {
+        state.status = 'succeeded';
         state.orders.data = action.payload.data || [];
         state.orders.pagination = action.payload.pagination || { page: 1, totalPages: 1, totalResults: 0 };
         state.error = null;
       })
       .addCase(fetchAdminOrders.rejected, (state, action) => {
+        state.status = 'failed';
         state.error = action.payload;
       })
       .addCase(fetchAdminOrderDetails.fulfilled, (state, action) => {

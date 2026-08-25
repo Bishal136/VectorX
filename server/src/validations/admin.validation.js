@@ -54,7 +54,7 @@ const updateCategory = Joi.object({
 
 const updateOrderStatus = Joi.object({
   status: Joi.string().valid('Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded').required(),
-  notes: Joi.string().optional(),
+  notes: Joi.string().optional().allow('', null),
 });
 
 const updateSettings = Joi.object({

@@ -40,6 +40,7 @@ router.delete('/categories/:id', adminController.deleteCategory);
 
 // Order management
 router.get('/orders', adminController.getOrders);
+router.get('/orders/:id', adminController.getOrderById);
 router.put(
   '/orders/:id/status',
   validate(adminSchemas.updateOrderStatus),

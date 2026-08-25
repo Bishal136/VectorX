@@ -705,41 +705,38 @@ const Cart = () => {
               {/* Secure Payments Badges */}
               <div className="pt-3 text-center border-t border-gray-100">
                 <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-3">
-                  Secure Payments Provided By
+                  Supported Payment Gateways & Methods
                 </p>
 
                 <div className="flex items-center justify-center gap-2 sm:gap-2.5 flex-wrap">
-                  {/* Mastercard */}
-                  <div className="h-8 px-2.5 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs">
-                    <svg className="h-4.5 w-auto" viewBox="0 0 36 24" fill="none">
-                      <rect width="36" height="24" rx="3" fill="#FFFFFF" />
-                      <circle cx="14" cy="12" r="7" fill="#EB001B" />
-                      <circle cx="22" cy="12" r="7" fill="#F79E1B" fillOpacity="0.8" />
-                    </svg>
+                  {/* PortPos */}
+                  <div className="h-7 px-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-center text-xs font-extrabold text-emerald-900 shadow-2xs">
+                    PortPos
                   </div>
 
-                  {/* Visa */}
-                  <div className="h-8 px-2.5 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs">
-                    <span className="font-black italic tracking-tighter text-blue-800 text-xs">
-                      VISA
-                    </span>
+                  {/* bKash */}
+                  <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-[#E2136E]">
+                    bKash
                   </div>
 
-                  {/* Crypto */}
-                  <div className="h-8 px-2.5 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs">
-                    <span className="font-bold text-yellow-600 text-[11px] flex items-center gap-1">
-                      <span className="w-3.5 h-3.5 rounded-full bg-yellow-500 text-white flex items-center justify-center text-[8px] font-bold">
-                        ₿
-                      </span>
-                      Crypto
-                    </span>
+                  {/* Nagad */}
+                  <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-[#F7941D]">
+                    Nagad
                   </div>
 
-                  {/* Interac */}
-                  <div className="h-8 px-2.5 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs">
-                    <span className="font-bold text-amber-600 text-[11px] tracking-tight">
-                      interac
-                    </span>
+                  {/* Rocket */}
+                  <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-[#8C3494]">
+                    Rocket
+                  </div>
+
+                  {/* Cards */}
+                  <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-blue-800">
+                    Cards
+                  </div>
+
+                  {/* COD */}
+                  <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-gray-700">
+                    COD
                   </div>
                 </div>
               </div>

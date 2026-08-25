@@ -367,7 +367,7 @@ const Orders = () => {
                       </span>
                       {order.paymentMethod && (
                         <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-lg">
-                          💳 {order.paymentMethod}{' '}
+                          💳 {order.paymentMethod === 'PORTPOS' ? 'PortPos (পোর্টপস)' : order.paymentMethod === 'COD' ? 'Cash on Delivery (COD)' : order.paymentMethod}{' '}
                           <span
                             className={`font-bold ml-1 ${
                               order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'

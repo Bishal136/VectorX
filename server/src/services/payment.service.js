@@ -4,197 +4,231 @@ const crypto = require('crypto');
 const ApiError = require('../utils/ApiError');
 
 /**
- * Walletmix Payment Gateway Service
- * Documentation: https://walletmix.com/docs (example)
+ * PortPos (পোর্টপস) Payment Gateway Service (v2)
+ * Documentation: https://api.portpos.com/
  */
-class WalletmixPaymentService {
+class PortPosPaymentService {
   constructor() {
-    this.apiUrl = process.env.WALLETMIX_API_URL || 'https://api.walletmix.com/v1';
-    this.apiKey = process.env.WALLETMIX_API_KEY;
-    this.secretKey = process.env.WALLETMIX_SECRET_KEY;
-    this.merchantId = process.env.WALLETMIX_MERCHANT_ID;
-    this.redirectUrl = process.env.WALLETMIX_REDIRECT_URL;
-    this.webhookUrl = process.env.WALLETMIX_WEBHOOK_URL;
+    this.mode = (process.env.PORTPOS_MODE || process.env.NODE_ENV === 'production' ? 'live' : 'sandbox').toLowerCase();
+    this.isSandbox = this.mode !== 'live';
+
+    this.apiUrl = this.isSandbox
+      ? (process.env.PORTPOS_API_URL || 'https://api-sandbox.portpos.com/payment/v2')
+      : (process.env.PORTPOS_API_URL || 'https://api.portpos.com/payment/v2');
+
+    this.paymentUrl = this.isSandbox
+      ? 'https://payment-sandbox.portpos.com/payment'
+      : 'https://payment.portpos.com/payment';
+
+    this.appKey = process.env.PORTPOS_APP_KEY;
+    this.secretKey = process.env.PORTPOS_SECRET_KEY;
+
+    this.redirectUrl = process.env.PORTPOS_REDIRECT_URL;
+    this.cancelUrl = process.env.PORTPOS_CANCEL_URL;
+    this.ipnUrl = process.env.PORTPOS_IPN_URL;
   }
 
   /**
-   * Generate signature for API request
+   * Generate PortPos Authorization Bearer Header
+   * Format: Bearer base64(APPKEY:md5(SECRETKEY + TIMESTAMP))
    */
-  generateSignature(payload) {
-    const sortedKeys = Object.keys(payload).sort();
-    const stringToSign = sortedKeys.map(key => `${key}=${payload[key]}`).join('&');
-    return crypto
-      .createHmac('sha256', this.secretKey)
-      .update(stringToSign)
+  generateAuthHeader() {
+    if (!this.appKey || !this.secretKey) {
+      return null;
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const md5Hash = crypto
+      .createHash('md5')
+      .update(`${this.secretKey}${timestamp}`)
       .digest('hex');
+
+    const authString = Buffer.from(`${this.appKey}:${md5Hash}`).toString('base64');
+    return `Bearer ${authString}`;
   }
 
   /**
-   * Initiate payment for an order
+   * Initiate payment for an order via PortPos API v2
    * @param {Object} order - Order document
-   * @param {Object} options - Additional options (customer info, etc.)
-   * @returns {Promise<Object>} - Payment initiation response
+   * @param {Object} options - Customer / Product options
+   * @returns {Promise<Object>} - { success: true, invoiceId, paymentUrl, transactionId }
    */
   async initiatePayment(order, options = {}) {
-    if (!this.apiKey || !this.secretKey || !this.merchantId) {
-      throw new ApiError(500, 'Walletmix credentials not configured');
+    const authHeader = this.generateAuthHeader();
+    if (!authHeader) {
+      throw new ApiError(500, 'PortPos credentials (PORTPOS_APP_KEY, PORTPOS_SECRET_KEY) are not configured');
     }
 
-    // Prepare payload according to Walletmix API
-    const payload = {
-      merchant_id: this.merchantId,
-      order_id: order._id.toString(),
-      amount: order.totalAmount,
-      currency: 'BDT',
-      customer_name: options.customerName || 'Customer',
-      customer_email: options.customerEmail || '',
-      customer_phone: options.customerPhone || '',
-      redirect_url: this.redirectUrl || `${process.env.FRONTEND_URL}/payment/success`,
-      cancel_url: this.cancelUrl || `${process.env.FRONTEND_URL}/payment/cancel`,
-      webhook_url: this.webhookUrl || `${process.env.BACKEND_URL}/api/payments/webhook`,
-      description: `Order ${order._id}`,
-      // Additional fields
-      ...options
-    };
+    const totalAmount = Number((order.totalAmount || 0).toFixed(2));
+    if (totalAmount <= 0) {
+      throw new ApiError(400, 'Order amount must be greater than zero');
+    }
 
-    // Generate signature
-    payload.signature = this.generateSignature(payload);
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    // PortPos v2 JSON invoice structure
+    const payload = {
+      order: {
+        amount: totalAmount,
+        currency: 'BDT',
+        redirect_url: this.redirectUrl || `${backendUrl}/api/payments/success?order_id=${order._id}`,
+        ipn_url: this.ipnUrl || `${backendUrl}/api/payments/ipn`,
+        reference: order._id.toString()
+      },
+      product: {
+        name: options.productName || `VectorX Order #${order._id.toString().slice(-6).toUpperCase()}`,
+        description: options.description || `Order payment on VectorX for #${order._id}`
+      },
+      billing: {
+        customer: {
+          name: options.customerName || 'Customer',
+          email: options.customerEmail || 'customer@example.com',
+          phone: options.customerPhone || '01700000000',
+          address: {
+            street: order.shippingAddress?.line1 || 'Not specified',
+            city: order.shippingAddress?.city || 'Dhaka',
+            state: order.shippingAddress?.state || 'Dhaka',
+            zipcode: order.shippingAddress?.pincode || '1000',
+            country: 'BGD'
+          }
+        }
+      }
+    };
 
     try {
       const response = await axios.post(
-        `${this.apiUrl}/payment/initiate`,
+        `${this.apiUrl}/invoice`,
         payload,
         {
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': this.apiKey
-          }
+            'Authorization': authHeader
+          },
+          timeout: 20000
         }
       );
 
-      if (response.data.status === 'success') {
+      const resData = response.data;
+
+      // PortPos API response structure
+      if (resData && (resData.status === 'success' || resData.result === 'success' || resData.data)) {
+        const invoiceData = resData.data || {};
+        const invoiceId = invoiceData.invoice_id || invoiceData.invoiceId || invoiceData.id || resData.invoice_id;
+
+        // Payment redirect URL
+        let paymentUrl = invoiceData.url || invoiceData.action?.url || (invoiceId ? `${this.paymentUrl}/?invoice=${invoiceId}` : null);
+
+        if (!invoiceId || !paymentUrl) {
+          throw new ApiError(502, 'PortPos invoice was created but no invoice ID or payment URL was returned');
+        }
+
         return {
           success: true,
-          paymentUrl: response.data.data.payment_url,
-          transactionId: response.data.data.transaction_id,
-          paymentId: response.data.data.payment_id
+          invoiceId,
+          transactionId: invoiceId,
+          paymentUrl,
+          raw: resData
         };
       } else {
-        throw new ApiError(400, response.data.message || 'Payment initiation failed');
+        throw new ApiError(400, resData.message || resData.error || 'PortPos invoice creation failed');
       }
     } catch (error) {
-      console.error('Walletmix payment initiation error:', error.response?.data || error.message);
-      throw new ApiError(500, 'Payment gateway error');
+      console.error('PortPos payment initiation error:', error.response?.data || error.message);
+      if (error instanceof ApiError) throw error;
+      const apiMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      throw new ApiError(502, `PortPos Gateway Error: ${apiMsg}`);
     }
   }
 
   /**
-   * Verify payment status
-   * @param {string} transactionId - Transaction ID from Walletmix
-   * @returns {Promise<Object>} - Payment status
+   * Verify payment status using PortPos IPN validation API
+   * @param {string} invoiceId - Invoice ID from PortPos
+   * @param {number} amount - Expected transaction amount
+   * @returns {Promise<Object>} - Payment verification result
    */
-  async verifyPayment(transactionId) {
-    const payload = {
-      merchant_id: this.merchantId,
-      transaction_id: transactionId
-    };
-    payload.signature = this.generateSignature(payload);
+  async verifyPayment(invoiceId, amount) {
+    if (!invoiceId) {
+      throw new ApiError(400, 'Invoice ID is required for PortPos verification');
+    }
+
+    const authHeader = this.generateAuthHeader();
+    if (!authHeader) {
+      throw new ApiError(500, 'PortPos credentials not configured');
+    }
+
+    const formattedAmount = amount ? Number(amount).toFixed(2) : '0.00';
 
     try {
-      const response = await axios.post(
-        `${this.apiUrl}/payment/verify`,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': this.apiKey
-          }
-        }
-      );
+      const endpoint = `${this.apiUrl}/invoice/ipn/${encodeURIComponent(invoiceId)}/${formattedAmount}`;
+      
+      const response = await axios.get(endpoint, {
+        headers: {
+          'Authorization': authHeader
+        },
+        timeout: 15000
+      });
 
-      if (response.data.status === 'success') {
-        return {
-          success: true,
-          status: response.data.data.status, // 'paid', 'pending', 'failed'
-          amount: response.data.data.amount,
-          paymentMethod: response.data.data.method,
-          transactionId: response.data.data.transaction_id
-        };
-      } else {
-        throw new ApiError(400, response.data.message || 'Payment verification failed');
-      }
+      const resData = response.data;
+      const data = resData?.data || resData || {};
+      const statusRaw = (data.status || resData.status || '').toString().toUpperCase();
+
+      // Accepted success status values in PortPos
+      const isPaid = ['ACCEPTED', 'VALID', 'PAID', 'SUCCESS', 'COMPLETED', '200'].includes(statusRaw);
+
+      return {
+        success: true,
+        isPaid,
+        status: isPaid ? 'paid' : (statusRaw === 'CANCELLED' || statusRaw === 'CANCEL' ? 'cancelled' : 'failed'),
+        amount: data.amount || amount,
+        currency: data.currency || 'BDT',
+        invoiceId: data.invoice_id || invoiceId,
+        paymentMethod: data.method || data.payment_method || 'PortPos',
+        raw: resData
+      };
     } catch (error) {
-      console.error('Walletmix payment verification error:', error.response?.data || error.message);
-      throw new ApiError(500, 'Payment verification error');
+      console.error('PortPos payment verification error:', error.response?.data || error.message);
+      
+      // Fallback: If verification endpoint has connectivity issue, handle gracefully
+      return {
+        success: false,
+        isPaid: false,
+        status: 'failed',
+        error: error.response?.data?.message || error.message
+      };
     }
   }
 
   /**
-   * Handle webhook payload from Walletmix
-   * @param {Object} payload - Webhook payload
-   * @param {string} signature - Signature header for verification
-   * @returns {Object} - Parsed webhook data
+   * Handle incoming IPN payload from PortPos webhook
+   * @param {Object} payload - Webhook / IPN body
+   * @returns {Object} - Parsed IPN data
    */
-  handleWebhook(payload, signature) {
-    // Verify signature
-    const computedSignature = this.generateSignature(payload);
-    if (computedSignature !== signature) {
-      throw new ApiError(401, 'Invalid webhook signature');
-    }
+  async handleIpn(payload = {}) {
+    const invoiceId = payload.invoice_id || payload.invoice || payload.data?.invoice_id;
+    const amount = payload.amount || payload.data?.amount;
+    const orderId = payload.reference || payload.order_id || payload.data?.reference;
+    const statusRaw = (payload.status || payload.data?.status || '').toString().toUpperCase();
 
-    // Extract data
-    const { order_id, transaction_id, status, amount, method } = payload;
+    let isPaid = ['ACCEPTED', 'VALID', 'PAID', 'SUCCESS', 'COMPLETED', '200'].includes(statusRaw);
+
+    // If status is present or we have invoiceId, we can cross-verify
+    if (invoiceId && amount) {
+      const verification = await this.verifyPayment(invoiceId, amount);
+      if (verification.success) {
+        isPaid = verification.isPaid;
+      }
+    }
 
     return {
-      orderId: order_id,
-      transactionId: transaction_id,
-      status: status, // 'paid', 'pending', 'failed'
-      amount: parseFloat(amount),
-      paymentMethod: method,
+      orderId,
+      invoiceId,
+      transactionId: invoiceId,
+      amount: Number(amount) || 0,
+      status: isPaid ? 'paid' : 'failed',
       raw: payload
     };
   }
-
-  /**
-   * Refund payment (optional)
-   * @param {string} transactionId - Transaction ID
-   * @param {number} amount - Amount to refund
-   * @param {string} reason - Refund reason
-   */
-  async refundPayment(transactionId, amount, reason = '') {
-    const payload = {
-      merchant_id: this.merchantId,
-      transaction_id: transactionId,
-      amount: amount,
-      reason: reason
-    };
-    payload.signature = this.generateSignature(payload);
-
-    try {
-      const response = await axios.post(
-        `${this.apiUrl}/payment/refund`,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': this.apiKey
-          }
-        }
-      );
-
-      if (response.data.status === 'success') {
-        return {
-          success: true,
-          refundId: response.data.data.refund_id
-        };
-      } else {
-        throw new ApiError(400, response.data.message || 'Refund failed');
-      }
-    } catch (error) {
-      console.error('Walletmix refund error:', error.response?.data || error.message);
-      throw new ApiError(500, 'Refund error');
-    }
-  }
 }
 
-module.exports = new WalletmixPaymentService();
+module.exports = new PortPosPaymentService();

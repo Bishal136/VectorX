@@ -56,15 +56,37 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 
 // -------------------- User Management --------------------
 const getUsers = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20, search = '', role = '' } = req.query;
+  const { page = 1, limit = 20, search = '', role = '', isVerified, isBlocked } = req.query;
   const skip = (page - 1) * limit;
 
   const filter = {};
   if (role) filter.role = role;
-  if (search) {
+
+  // Filter by email verification status
+  if (isVerified !== undefined && isVerified !== '') {
+    if (isVerified === 'true' || isVerified === true) {
+      filter.isVerified = true;
+    } else if (isVerified === 'false' || isVerified === false) {
+      filter.isVerified = { $ne: true };
+    }
+  }
+
+  // Filter by account blocked status
+  if (isBlocked !== undefined && isBlocked !== '') {
+    if (isBlocked === 'true' || isBlocked === true) {
+      filter.isBlocked = true;
+    } else if (isBlocked === 'false' || isBlocked === false) {
+      filter.isBlocked = { $ne: true };
+    }
+  }
+
+  // Search by name, email, or phone
+  if (search && search.trim()) {
+    const searchRegex = { $regex: search.trim(), $options: 'i' };
     filter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } },
+      { name: searchRegex },
+      { email: searchRegex },
+      { phone: searchRegex },
     ];
   }
 
@@ -326,26 +348,98 @@ const getOrders = asyncHandler(async (req, res) => {
     userId = '',
     fromDate = '',
     toDate = '',
+    startDate = '',
+    endDate = '',
+    search = '',
   } = req.query;
   const skip = (page - 1) * limit;
 
   const filter = {};
   if (status) filter.status = status;
   if (paymentStatus) filter.paymentStatus = paymentStatus;
-  if (sellerId) filter.sellerId = sellerId;
-  if (userId) filter.userId = userId;
+  if (sellerId && mongoose.Types.ObjectId.isValid(sellerId)) filter.sellerId = sellerId;
+  if (userId && mongoose.Types.ObjectId.isValid(userId)) filter.userId = userId;
 
-  // Date range
-  if (fromDate || toDate) {
+  // Date range handling with full day boundaries
+  const effectiveStartDate = startDate || fromDate;
+  const effectiveEndDate = endDate || toDate;
+
+  if (effectiveStartDate || effectiveEndDate) {
     filter.createdAt = {};
-    if (fromDate) filter.createdAt.$gte = new Date(fromDate);
-    if (toDate) filter.createdAt.$lte = new Date(toDate);
+    if (effectiveStartDate) {
+      const from = new Date(effectiveStartDate);
+      if (!isNaN(from.getTime())) {
+        if (effectiveStartDate.length <= 10) {
+          from.setHours(0, 0, 0, 0);
+        }
+        filter.createdAt.$gte = from;
+      }
+    }
+    if (effectiveEndDate) {
+      const to = new Date(effectiveEndDate);
+      if (!isNaN(to.getTime())) {
+        if (effectiveEndDate.length <= 10) {
+          to.setHours(23, 59, 59, 999);
+        }
+        filter.createdAt.$lte = to;
+      }
+    }
+  }
+
+  // Search filter across Order ID, Buyer, Seller, Items, and Shipping details
+  const searchStr = (search || '').trim();
+  if (searchStr) {
+    const searchConditions = [];
+
+    // If search is a valid 24-hex ObjectId
+    if (mongoose.Types.ObjectId.isValid(searchStr) && searchStr.length === 24) {
+      searchConditions.push({ _id: new mongoose.Types.ObjectId(searchStr) });
+    }
+
+    // Search by User name, email, or phone
+    const matchingUsers = await User.find({
+      $or: [
+        { name: { $regex: searchStr, $options: 'i' } },
+        { email: { $regex: searchStr, $options: 'i' } },
+        { phone: { $regex: searchStr, $options: 'i' } },
+      ],
+    }).select('_id').lean();
+
+    if (matchingUsers.length > 0) {
+      searchConditions.push({ userId: { $in: matchingUsers.map((u) => u._id) } });
+    }
+
+    // Search by Seller shopName
+    const matchingSellers = await Seller.find({
+      shopName: { $regex: searchStr, $options: 'i' },
+    }).select('_id').lean();
+
+    if (matchingSellers.length > 0) {
+      searchConditions.push({ sellerId: { $in: matchingSellers.map((s) => s._id) } });
+    }
+
+    // Search in items name, coupon code, tracking number, or shipping address phone/city
+    searchConditions.push({
+      $or: [
+        { 'items.name': { $regex: searchStr, $options: 'i' } },
+        { couponCode: { $regex: searchStr, $options: 'i' } },
+        { trackingNumber: { $regex: searchStr, $options: 'i' } },
+        { 'shippingAddress.phone': { $regex: searchStr, $options: 'i' } },
+        { 'shippingAddress.city': { $regex: searchStr, $options: 'i' } },
+      ],
+    });
+
+    if (searchConditions.length > 0) {
+      filter.$and = filter.$and || [];
+      filter.$and.push({ $or: searchConditions });
+    }
   }
 
   const [orders, total] = await Promise.all([
     Order.find(filter)
-      .populate('userId', 'name email')
-      .populate('sellerId', 'shopName')
+      .populate('userId', 'name email phone avatar isBlocked')
+      .populate('sellerId', 'shopName shopAddress isVerified')
+      .populate('items.productId', 'name images price')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 })
@@ -365,7 +459,35 @@ const getOrders = asyncHandler(async (req, res) => {
   });
 });
 
-// Optional: Admin can update order status (e.g., for dispute resolution)
+// Single Order Details (Admin)
+const getOrderById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new ApiError(400, 'Invalid order ID format');
+  }
+
+  const order = await Order.findById(id)
+    .populate('userId', 'name email phone avatar isBlocked')
+    .populate({
+      path: 'sellerId',
+      select: 'shopName shopAddress isVerified verificationStatus user',
+      populate: { path: 'user', select: 'name email phone' },
+    })
+    .populate('items.productId', 'name images price stock category isArchived')
+    .lean();
+
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+
+  res.status(200).json({
+    success: true,
+    data: order,
+  });
+});
+
+// Admin can update order status (e.g., for dispute resolution / lifecycle override)
 const updateOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, notes } = req.body;
@@ -377,15 +499,23 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   const order = await Order.findById(id);
   if (!order) throw new ApiError(404, 'Order not found');
 
-  // Admin can set any status, but we might add validation
   order.status = status;
-  if (notes) order.notes = (order.notes || '') + `\nAdmin note: ${notes}`;
+  if (notes && notes.trim()) {
+    order.notes = (order.notes || '') + (order.notes ? '\n' : '') + `Admin note: ${notes.trim()}`;
+  }
   await order.save();
+
+  // Populate order for Redux store state consistency
+  await order.populate([
+    { path: 'userId', select: 'name email phone avatar isBlocked' },
+    { path: 'sellerId', select: 'shopName shopAddress isVerified' },
+    { path: 'items.productId', select: 'name images price' },
+  ]);
 
   res.status(200).json({
     success: true,
     data: order,
-    message: 'Order status updated',
+    message: `Order status updated to ${status}`,
   });
 });
 
@@ -559,6 +689,7 @@ module.exports = {
   updateCategory,
   deleteCategory,
   getOrders,
+  getOrderById,
   updateOrderStatus,
   getSettings,
   updateSettings,

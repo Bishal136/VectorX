@@ -78,8 +78,8 @@ const Checkout = () => {
   const [confirmAddress, setConfirmAddress] = useState(false);
   const [emailNewsUpdates, setEmailNewsUpdates] = useState(false);
 
-  // Payment method selection
-  const [paymentMethod, setPaymentMethod] = useState('email_money_transfer');
+  // Payment method selection ('PORTPOS' or 'COD')
+  const [paymentMethod, setPaymentMethod] = useState('PORTPOS');
 
   // Coupon state
   const [couponCode, setCouponCode] = useState(location.state?.appliedCoupon?.code || '');
@@ -88,6 +88,7 @@ const Checkout = () => {
   // Order placed completion state
   const [orderPlacedData, setOrderPlacedData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [redirectingToPayment, setRedirectingToPayment] = useState(false);
 
   // Update email if user loads later
   useEffect(() => {
@@ -221,9 +222,11 @@ const Checkout = () => {
     });
 
     try {
+      const selectedMethod = paymentMethod === 'PORTPOS' ? 'PORTPOS' : 'COD';
+
       const orderPayload = {
         shippingAddress: shippingAddressPayload,
-        paymentMethod: paymentMethod === 'email_money_transfer' ? 'COD' : paymentMethod === 'crypto' ? 'crypto' : 'stripe',
+        paymentMethod: selectedMethod,
         couponCode: appliedCoupon?.code || '',
         notes: `${formData.orderNotes ? `Notes: ${formData.orderNotes}. ` : ''}${formData.outOfStockAction ? `If out of stock: ${formData.outOfStockAction}. ` : ''}`,
         items: itemsPayload
@@ -234,8 +237,37 @@ const Checkout = () => {
       // Refresh cart state globally
       dispatch(fetchCart());
 
+      // If user chose PortPos online payment, initiate gateway session and redirect
+      if (selectedMethod === 'PORTPOS') {
+        const targetOrder = result.orders && result.orders.length > 0 ? result.orders[0] : null;
+        const targetOrderId = targetOrder ? targetOrder._id : result._id;
+
+        if (!targetOrderId) {
+          throw new Error('Order ID missing from response');
+        }
+
+        setRedirectingToPayment(true);
+        toast.info('Connecting to PortPos (পোর্টপস) Secure Payment Gateway...');
+
+        try {
+          const initRes = await axiosInstance.post('/payments/initiate', { orderId: targetOrderId });
+          if (initRes.data?.success && initRes.data?.data?.paymentUrl) {
+            window.location.href = initRes.data.data.paymentUrl;
+            return;
+          } else {
+            throw new Error(initRes.data?.message || 'Could not retrieve payment URL');
+          }
+        } catch (payErr) {
+          setRedirectingToPayment(false);
+          toast.error(payErr.response?.data?.message || payErr.message || 'Payment initiation failed. Please try from your Order History.');
+          setOrderPlacedData(result);
+          return;
+        }
+      }
+
+      // Cash on Delivery (COD) flow
       setOrderPlacedData(result);
-      toast.success('🎉 Order placed successfully!');
+      toast.success('🎉 Order placed successfully with Cash on Delivery!');
     } catch (err) {
       toast.error(typeof err === 'string' ? err : 'Failed to place order. Please try again.');
     } finally {
@@ -734,39 +766,95 @@ const Checkout = () => {
                 </div>
 
                 {/* Payment Method Badge / Option */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Payment Option
+                      Payment Method
                     </span>
-                    <span className="h-5 px-2 bg-amber-100 text-amber-800 text-[10px] font-bold rounded flex items-center">
-                      interac
+                    <span className="h-5 px-2 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      PortPos & COD
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('email_money_transfer')}
-                      className={`p-2.5 rounded-xl border text-left font-semibold transition-all cursor-pointer ${
-                        paymentMethod === 'email_money_transfer'
-                          ? 'border-[#124B38] bg-emerald-50/50 text-[#124B38]'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  <div className="space-y-2.5">
+                    {/* Option 1: PortPos Online Payment */}
+                    <div
+                      onClick={() => setPaymentMethod('PORTPOS')}
+                      className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                        paymentMethod === 'PORTPOS'
+                          ? 'border-[#124B38] bg-emerald-50/40 shadow-xs'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
                       }`}
                     >
-                      Email Money Transfer
-                    </button>
-                    <button
-                      type="button"
+                      <input
+                        type="radio"
+                        id="method_portpos"
+                        name="payment_method_choice"
+                        checked={paymentMethod === 'PORTPOS'}
+                        onChange={() => setPaymentMethod('PORTPOS')}
+                        className="mt-1 w-4 h-4 text-[#124B38] accent-[#124B38] cursor-pointer"
+                      />
+                      <label htmlFor="method_portpos" className="flex-1 cursor-pointer select-none">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                            PortPos <span className="text-xs font-medium text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded">পোর্টপস</span>
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            Online Pay
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          bKash, Nagad, Rocket, Visa, Mastercard, Internet Banking
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          <span className="text-[10px] font-bold bg-[#E2136E]/10 text-[#E2136E] px-1.5 py-0.5 rounded border border-[#E2136E]/20">
+                            bKash
+                          </span>
+                          <span className="text-[10px] font-bold bg-[#F7941D]/10 text-[#F7941D] px-1.5 py-0.5 rounded border border-[#F7941D]/20">
+                            Nagad
+                          </span>
+                          <span className="text-[10px] font-bold bg-[#8C3494]/10 text-[#8C3494] px-1.5 py-0.5 rounded border border-[#8C3494]/20">
+                            Rocket
+                          </span>
+                          <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">
+                            Cards
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Option 2: Cash on Delivery */}
+                    <div
                       onClick={() => setPaymentMethod('COD')}
-                      className={`p-2.5 rounded-xl border text-left font-semibold transition-all cursor-pointer ${
+                      className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
                         paymentMethod === 'COD'
-                          ? 'border-[#124B38] bg-emerald-50/50 text-[#124B38]'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                          ? 'border-[#124B38] bg-emerald-50/40 shadow-xs'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
                       }`}
                     >
-                      Cash on Delivery
-                    </button>
+                      <input
+                        type="radio"
+                        id="method_cod"
+                        name="payment_method_choice"
+                        checked={paymentMethod === 'COD'}
+                        onChange={() => setPaymentMethod('COD')}
+                        className="mt-1 w-4 h-4 text-[#124B38] accent-[#124B38] cursor-pointer"
+                      />
+                      <label htmlFor="method_cod" className="flex-1 cursor-pointer select-none">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                            Cash on Delivery <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">COD</span>
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
+                            Doorstep
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          পণ্য হাতে পেয়ে নগদ টাকায় মূল্য পরিশোধ করুন
+                        </p>
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -798,7 +886,7 @@ const Checkout = () => {
                       className="mt-0.5 w-4 h-4 rounded text-[#124B38] border-gray-300 focus:ring-[#124B38] accent-[#124B38] cursor-pointer shrink-0"
                     />
                     <span className="leading-snug">
-                      I confirm that my address is 100% correct and WILL NOT hold Top Shelf BC liable if this shipment is sent to an incorrect address. *
+                      I confirm that my shipping address and phone number are 100% correct. *
                     </span>
                   </label>
 
@@ -810,7 +898,7 @@ const Checkout = () => {
                       className="mt-0.5 w-4 h-4 rounded text-[#124B38] border-gray-300 focus:ring-[#124B38] accent-[#124B38] cursor-pointer shrink-0"
                     />
                     <span className="leading-snug">
-                      Sign me up to receive email updates and news (optional)
+                      Sign me up to receive SMS / Email delivery updates and exclusive deals
                     </span>
                   </label>
                 </div>
@@ -818,14 +906,24 @@ const Checkout = () => {
                 {/* Primary Place Order CTA Button */}
                 <button
                   type="submit"
-                  disabled={!confirmAddress || isSubmitting}
+                  disabled={!confirmAddress || isSubmitting || redirectingToPayment}
                   className="w-full py-4 px-6 rounded-full bg-[#16a34a] hover:bg-[#15803d] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-sm sm:text-base transition-all duration-200 shadow-md shadow-emerald-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {isSubmitting ? (
+                  {redirectingToPayment ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                      </svg>
+                      Redirecting to PortPos…
+                    </span>
+                  ) : isSubmitting ? (
                     <span>Placing Order…</span>
                   ) : (
                     <>
-                      <span>Place Order</span>
+                      <span>
+                        {paymentMethod === 'PORTPOS' ? 'Pay with PortPos (পোর্টপস)' : 'Place Order (COD)'}
+                      </span>
                       <span className="opacity-75">|</span>
                       <span>৳{grandTotal.toFixed(2)}</span>
                     </>
@@ -835,41 +933,38 @@ const Checkout = () => {
                 {/* Secure Payments Badges */}
                 <div className="pt-3 text-center border-t border-gray-100">
                   <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-3">
-                    Secure Payments Provided By
+                    Supported Gateways & Methods
                   </p>
 
                   <div className="flex items-center justify-center gap-2 sm:gap-2.5 flex-wrap">
-                    {/* Mastercard */}
-                    <div className="h-8 px-2.5 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs">
-                      <svg className="h-4.5 w-auto" viewBox="0 0 36 24" fill="none">
-                        <rect width="36" height="24" rx="3" fill="#FFFFFF" />
-                        <circle cx="14" cy="12" r="7" fill="#EB001B" />
-                        <circle cx="22" cy="12" r="7" fill="#F79E1B" fillOpacity="0.8" />
-                      </svg>
+                    {/* PortPos */}
+                    <div className="h-7 px-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-center text-xs font-extrabold text-emerald-900 shadow-2xs">
+                      PortPos
                     </div>
 
-                    {/* Visa */}
-                    <div className="h-8 px-2.5 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs">
-                      <span className="font-black italic tracking-tighter text-blue-800 text-xs">
-                        VISA
-                      </span>
+                    {/* bKash */}
+                    <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-[#E2136E]">
+                      bKash
                     </div>
 
-                    {/* Crypto */}
-                    <div className="h-8 px-2.5 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs">
-                      <span className="font-bold text-yellow-600 text-[11px] flex items-center gap-1">
-                        <span className="w-3.5 h-3.5 rounded-full bg-yellow-500 text-white flex items-center justify-center text-[8px] font-bold">
-                          ₿
-                        </span>
-                        Crypto
-                      </span>
+                    {/* Nagad */}
+                    <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-[#F7941D]">
+                      Nagad
                     </div>
 
-                    {/* Interac */}
-                    <div className="h-8 px-2.5 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs">
-                      <span className="font-bold text-amber-600 text-[11px] tracking-tight">
-                        interac
-                      </span>
+                    {/* Rocket */}
+                    <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-[#8C3494]">
+                      Rocket
+                    </div>
+
+                    {/* Visa / Master */}
+                    <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-blue-800">
+                      Cards
+                    </div>
+
+                    {/* COD */}
+                    <div className="h-7 px-2 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-2xs text-[11px] font-bold text-gray-700">
+                      COD
                     </div>
                   </div>
                 </div>

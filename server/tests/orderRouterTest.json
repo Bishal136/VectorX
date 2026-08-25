@@ -182,7 +182,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"shippingAddress\": {\n    \"label\": \"Home\",\n    \"line1\": \"123 Dhanmondi, Road #4\",\n    \"line2\": \"Apartment 5B\",\n    \"city\": \"Dhaka\",\n    \"state\": \"Dhaka Division\",\n    \"pincode\": \"1205\",\n    \"coordinates\": [90.4125, 23.8103],\n    \"phone\": \"+8801712345678\"\n  },\n  \"paymentMethod\": \"WALLEMIX\",\n  \"couponCode\": \"SAVE10\",\n  \"notes\": \"Leave package at reception\"\n}"
+              "raw": "{\n  \"shippingAddress\": {\n    \"label\": \"Home\",\n    \"line1\": \"123 Dhanmondi, Road #4\",\n    \"line2\": \"Apartment 5B\",\n    \"city\": \"Dhaka\",\n    \"state\": \"Dhaka Division\",\n    \"pincode\": \"1205\",\n    \"coordinates\": [90.4125, 23.8103],\n    \"phone\": \"+8801712345678\"\n  },\n  \"paymentMethod\": \"PORTPOS\",\n  \"couponCode\": \"SAVE10\",\n  \"notes\": \"Leave package at reception\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/orders",
@@ -225,7 +225,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"shippingAddress\": {\n    \"line1\": \"123 Dhanmondi\",\n    \"city\": \"Dhaka\",\n    \"pincode\": \"1205\",\n    \"phone\": \"+8801712345678\"\n  },\n  \"paymentMethod\": \"stripe\"\n}"
+              "raw": "{\n  \"shippingAddress\": {\n    \"line1\": \"123 Dhanmondi\",\n    \"city\": \"Dhaka\",\n    \"pincode\": \"1205\",\n    \"phone\": \"+8801712345678\"\n  },\n  \"paymentMethod\": \"COD\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/orders",

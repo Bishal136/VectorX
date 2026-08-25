@@ -1,24 +1,30 @@
-# Payment Routes - API Documentation
+# Payment Routes - API Documentation (PortPos & Cash on Delivery)
 
 ## Base URL
 `/api/payments`
 
 ---
 
-## Authentication
-Most endpoints require a valid JWT token:
-```
-Authorization: Bearer <your_jwt_token>
-```
-- Public callbacks (`/success`, `/cancel`, `/webhook`) do not require authentication.
+## Supported Payment Gateways / Methods
+1. **PortPos (পোর্টপস)**: Online Payment (`PORTPOS`) supporting bKash, Nagad, Rocket, Credit/Debit Cards (Visa, Mastercard, Amex), and Internet Banking.
+2. **Cash on Delivery (ক্যাশ অন ডেলিভারি)**: Pay on delivery (`COD`).
 
 ---
 
-## 1. Initiate Payment
+## Authentication
+Protected endpoints require a valid JWT token:
+```
+Authorization: Bearer <your_jwt_token>
+```
+- Public callbacks (`/success`, `/cancel`, `/ipn`, `/webhook`) do not require user JWT authentication.
+
+---
+
+## 1. Initiate PortPos Payment
 
 ### POST `/api/payments/initiate`
 
-Start a payment session for a specific order. Returns a payment URL to redirect the user.
+Start a PortPos payment session for a specific order. Returns a payment URL to redirect the user to PortPos hosted payment page.
 
 **Headers:**
 ```
@@ -34,8 +40,8 @@ Content-Type: application/json
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| orderId | String | Yes | 24-character hex order ID |
+|---|---|---|---|
+| orderId | String | Yes | 24-character MongoDB order ID |
 
 **Response:**
 ```json
@@ -43,21 +49,21 @@ Content-Type: application/json
   "success": true,
   "data": {
     "orderId": "66a1b2c3d4e5f6...",
-    "paymentUrl": "https://walletmix.com/pay/...",
-    "transactionId": "TX123456"
+    "paymentUrl": "https://payment-sandbox.portpos.com/payment/?invoice=INV_123456",
+    "invoiceId": "INV_123456",
+    "transactionId": "INV_123456"
   },
-  "message": "Payment initiated successfully"
+  "message": "PortPos payment session initiated successfully"
 }
 ```
 
 **Error Responses:**
 | Status Code | Message |
-|-------------|---------|
+|---|---|
 | 400 | Order already paid / Cannot initiate payment for this order |
 | 401 | Authentication required |
-| 403 | User does not own this order |
 | 404 | Order not found |
-| 500 | Payment gateway error / Credentials not configured |
+| 500 / 502 | PortPos gateway error / Credentials not configured |
 
 ---
 
@@ -72,195 +78,71 @@ Retrieve the current payment status of an order.
 Authorization: Bearer <token>
 ```
 
-**URL Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| orderId | String | 24-character hex order ID |
-
 **Response:**
 ```json
 {
   "success": true,
   "data": {
     "orderId": "66a1b2c3d4e5f6...",
-    "paymentStatus": "paid",      // 'pending', 'paid', 'failed', 'refunded'
-    "status": "Processing",       // Order status
-    "paymentReference": "TX123456"
+    "paymentStatus": "paid",
+    "status": "Processing",
+    "paymentMethod": "PORTPOS",
+    "paymentReference": "INV_123456",
+    "totalAmount": 1250,
+    "currency": "BDT",
+    "invoiceId": "INV_123456",
+    "paymentUrl": "https://payment-sandbox.portpos.com/payment/?invoice=INV_123456"
   }
 }
 ```
-
-**Error Responses:**
-| Status Code | Message |
-|-------------|---------|
-| 401 | Authentication required |
-| 403 | Unauthorized to view this order |
-| 404 | Order not found |
 
 ---
 
 ## 3. Payment Success Callback (Redirect)
 
-### GET `/api/payments/success`
+### GET / POST `/api/payments/success`
 
-Public endpoint – called by Walletmix after successful payment.  
-The backend verifies the payment and redirects the user to the frontend success page.
-
-**Query Parameters (received from gateway):**
-| Parameter | Description |
-|-----------|-------------|
-| order_id | Order ID |
-| transaction_id | Gateway transaction ID |
-| status | Payment status from gateway |
+Called by PortPos gateway after customer completes transaction.  
+The backend verifies the transaction with PortPos IPN API and redirects the user to the frontend success page.
 
 **Redirects to:**
-- Success: `FRONTEND_URL/payment/success?orderId=<orderId>`
-- Failure: `FRONTEND_URL/payment/failed?orderId=<orderId>`
-
-**Frontend handling:**  
-After redirection, the frontend should display order confirmation and update the order status via `GET /api/orders/:orderId`.
+- Success: `${FRONTEND_URL}/payment/success?orderId=<orderId>&invoice=<invoiceId>`
+- Failure: `${FRONTEND_URL}/payment/failed?orderId=<orderId>`
 
 ---
 
 ## 4. Payment Cancel Callback (Redirect)
 
-### GET `/api/payments/cancel`
+### GET / POST `/api/payments/cancel`
 
-Public endpoint – called by Walletmix when user cancels payment.  
-Updates order payment status to `failed` and redirects to frontend cancel page.
-
-**Query Parameters (received from gateway):**
-| Parameter | Description |
-|-----------|-------------|
-| order_id | Order ID |
-
-**Redirects to:** `FRONTEND_URL/payment/cancel?orderId=<orderId>`
-
-**Frontend handling:**  
-Show a cancellation message with an option to retry payment.
+Called by PortPos gateway when the user cancels the payment process.  
+**Redirects to:** `${FRONTEND_URL}/payment/cancel?orderId=<orderId>`
 
 ---
 
-## 5. Webhook (Server-to-Server)
+## 5. Instant Payment Notification (IPN / Webhook)
 
-### POST `/api/payments/webhook`
+### POST `/api/payments/ipn` or `/api/payments/webhook`
 
-Public endpoint – called by Walletmix to send asynchronous payment status updates.  
-Used to confirm payments even if the user closes the browser before redirection.
-
-**Headers:**
-```
-x-signature: <hmac_signature>
-Content-Type: application/json
-```
-
-**Request Body (example):**
-```json
-{
-  "order_id": "66a1b2c3d4e5f6...",
-  "transaction_id": "TX123456",
-  "status": "paid",
-  "amount": 2998,
-  "method": "bKash"
-}
-```
+Asynchronous server-to-server notification sent by PortPos to verify and update the order and payment state in the database.
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Webhook processed"
+  "message": "PortPos IPN processed successfully"
 }
 ```
 
-**Error Responses:**
-| Status Code | Message |
-|-------------|---------|
-| 401 | Invalid signature / Missing signature |
-| 404 | Order not found |
-
-**Note:** The webhook endpoint uses `express.raw()` to preserve the raw body for signature verification.  
-Your payment gateway must be configured to send the webhook to `https://your-domain.com/api/payments/webhook`.
-
 ---
 
-## Frontend Flow & Usage Examples
+## Environment Variables
 
-### React with Axios
-
-```javascript
-// 1. After placing an order, get the order ID
-const { data: orderData } = await createOrder({ ... });
-const orderId = orderData.orders[0]._id;
-
-// 2. Initiate payment
-const paymentRes = await axios.post(
-  '/api/payments/initiate',
-  { orderId },
-  { headers: { Authorization: `Bearer ${token}` } }
-);
-
-// 3. Redirect to payment gateway
-window.location.href = paymentRes.data.data.paymentUrl;
-```
-
-**Success/Cancel Page handling:**
-```jsx
-// /payment/success
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const orderId = params.get('orderId');
-  if (orderId) {
-    // Fetch order details and show confirmation
-    fetchOrder(orderId);
-  }
-}, []);
-```
-
-**Polling for payment status (optional):**
-```javascript
-const checkPaymentStatus = async (orderId) => {
-  const res = await axios.get(`/api/payments/status/${orderId}`);
-  if (res.data.data.paymentStatus === 'paid') {
-    // Proceed to order confirmation
-  }
-};
-```
-
----
-
-## Integration Checklist for Testers
-
-| Test Case | Expected Result |
-|-----------|-----------------|
-| Initiate payment for valid order | Returns `paymentUrl`; order `paymentStatus` becomes `pending` |
-| Initiate payment for already paid order | Returns 400 error |
-| Initiate payment for non-existent order | Returns 404 error |
-| Payment success callback with valid transaction | Order status becomes `Processing`; `paymentStatus` becomes `paid`; redirects to frontend success |
-| Payment success callback with invalid transaction | `paymentStatus` becomes `failed`; redirects to frontend failed |
-| Payment cancel callback | `paymentStatus` becomes `failed`; redirects to frontend cancel |
-| Webhook with valid signature | Updates order status correctly |
-| Webhook with invalid signature | Returns 401 |
-| Get payment status for own order | Returns correct status |
-| Get payment status for other user's order | Returns 403 |
-| Gateway credentials missing | Returns 500 with appropriate message |
-
----
-
-## Environment Variables (for reference)
-
-| Variable | Description |
-|----------|-------------|
-| `WALLETMIX_API_URL` | Gateway API base URL |
-| `WALLETMIX_API_KEY` | API key for authentication |
-| `WALLETMIX_SECRET_KEY` | Secret for signature generation |
-| `WALLETMIX_MERCHANT_ID` | Merchant ID provided by Walletmix |
-| `WALLETMIX_REDIRECT_URL` | Frontend success page (e.g., `http://localhost:5173/payment/success`) |
-| `WALLETMIX_CANCEL_URL` | Frontend cancel page |
-| `WALLETMIX_WEBHOOK_URL` | Public webhook URL (e.g., `https://your-domain.com/api/payments/webhook`) |
-
----
-
-**Document Version:** 1.0  
-**Last Updated:** 2026-08-14  
-**For:** Frontend Developers & Testers
+| Variable | Description | Example |
+|---|---|---|
+| `PORTPOS_APP_KEY` | Application key from PortPos dashboard | `your_app_key` |
+| `PORTPOS_SECRET_KEY` | Secret key from PortPos dashboard | `your_secret_key` |
+| `PORTPOS_MODE` | Gateway mode (`sandbox` or `live`) | `sandbox` |
+| `PORTPOS_REDIRECT_URL` | Redirect callback URL | `https://your-backend.com/api/payments/success` |
+| `PORTPOS_CANCEL_URL` | Cancel callback URL | `https://your-backend.com/api/payments/cancel` |
+| `PORTPOS_IPN_URL` | IPN webhook URL | `https://your-backend.com/api/payments/ipn` |

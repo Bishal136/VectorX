@@ -19,6 +19,9 @@ import Checkout from '../pages/user/Checkout';
 import Profile from '../pages/user/Profile';
 import ChangePassword from '../pages/user/ChangePassword';
 import OrderHistory from '../pages/user/OrderHistory';
+import PaymentSuccess from '../pages/user/PaymentSuccess';
+import PaymentFailed from '../pages/user/PaymentFailed';
+import PaymentCancel from '../pages/user/PaymentCancel';
 
 // Seller pages
 import SellerDashboard from '../pages/seller/SellerDashboard';
@@ -54,6 +57,9 @@ const AppRoutes = () => {
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/products" element={<ProductListing />} />
         <Route path="/products/:id" element={<ProductDetails />} />
+        <Route path="/payment/success" element={<PaymentSuccess />} />
+        <Route path="/payment/failed" element={<PaymentFailed />} />
+        <Route path="/payment/cancel" element={<PaymentCancel />} />
       </Route>
 
       {/* Authenticated User / Account routes – wrapped in UserLayout */}

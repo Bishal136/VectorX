@@ -19,12 +19,8 @@ const PAYMENT_STATUS = {
 };
 
 const PAYMENT_METHODS = {
-  WALLEMIX: 'WALLEMIX',
-  COD: 'COD',
-  STRIPE: 'stripe',
-  PAYPAL: 'paypal',
-  EMAIL_MONEY_TRANSFER: 'email_money_transfer',
-  CRYPTO: 'crypto'
+  PORTPOS: 'PORTPOS',
+  COD: 'COD'
 };
 
 const orderItemSchema = new mongoose.Schema({

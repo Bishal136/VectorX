@@ -85,6 +85,24 @@ const OrderHistory = () => {
   const [cancelCustomNotes, setCancelCustomNotes] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [reorderingId, setReorderingId] = useState(null);
+  const [payingOrderId, setPayingOrderId] = useState(null);
+
+  const handlePayPortPos = async (order) => {
+    setPayingOrderId(order._id);
+    try {
+      toast.info('Connecting to PortPos (পোর্টপস)...');
+      const res = await axiosInstance.post('/payments/initiate', { orderId: order._id });
+      if (res.data?.success && res.data?.data?.paymentUrl) {
+        window.location.href = res.data.data.paymentUrl;
+      } else {
+        toast.error(res.data?.message || 'Could not initiate payment');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Payment initiation failed');
+    } finally {
+      setPayingOrderId(null);
+    }
+  };
 
   // Fetch orders when page or tab changes
   useEffect(() => {
@@ -595,9 +613,17 @@ const OrderHistory = () => {
                     {/* Bottom Order Info & Action Buttons */}
                     <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap">
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1.5">
                           <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                          Payment: <strong className="text-slate-800">{order.paymentMethod || 'COD'}</strong>
+                          <span>Method:</span>
+                          <strong className="text-slate-800 uppercase font-bold">
+                            {order.paymentMethod === 'PORTPOS' ? 'PortPos (পোর্টপস)' : 'Cash on Delivery (COD)'}
+                          </strong>
+                          {order.paymentStatus === 'paid' ? (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded">PAID</span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded">{order.paymentStatus || 'PENDING'}</span>
+                          )}
                         </span>
                         <span>•</span>
                         <span>
@@ -606,6 +632,18 @@ const OrderHistory = () => {
                       </div>
 
                       <div className="flex items-center gap-2 flex-wrap">
+                        {order.paymentMethod === 'PORTPOS' && order.paymentStatus !== 'paid' && order.status !== 'Cancelled' && order.status !== 'Refunded' && (
+                          <button
+                            type="button"
+                            disabled={payingOrderId === order._id}
+                            onClick={() => handlePayPortPos(order)}
+                            className="px-3.5 py-1.5 rounded-lg bg-[#16a34a] hover:bg-[#15803d] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:bg-gray-400"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            {payingOrderId === order._id ? 'Connecting…' : 'Pay Now (PortPos)'}
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => {
@@ -707,15 +745,35 @@ const OrderHistory = () => {
             {/* Modal Body */}
             <div className="p-6 space-y-6 text-xs">
               {/* Order Status Strip */}
-              <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl">
+              <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl flex-wrap gap-2">
                 <div>
                   <span className="text-slate-400 font-bold block text-[10px] uppercase">Current Status</span>
                   <div className="mt-1">{renderStatusBadge(selectedOrder.status)}</div>
                 </div>
                 <div>
                   <span className="text-slate-400 font-bold block text-[10px] uppercase">Payment Method</span>
-                  <span className="font-bold text-slate-800 uppercase">{selectedOrder.paymentMethod || 'COD'}</span>
+                  <span className="font-bold text-slate-800 uppercase block">
+                    {selectedOrder.paymentMethod === 'PORTPOS' ? 'PortPos (পোর্টপস)' : 'Cash on Delivery (COD)'}
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded inline-block mt-0.5 ${
+                    selectedOrder.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {(selectedOrder.paymentStatus || 'PENDING').toUpperCase()}
+                  </span>
                 </div>
+                {selectedOrder.paymentMethod === 'PORTPOS' && selectedOrder.paymentStatus !== 'paid' && selectedOrder.status !== 'Cancelled' && (
+                  <div>
+                    <button
+                      type="button"
+                      disabled={payingOrderId === selectedOrder._id}
+                      onClick={() => handlePayPortPos(selectedOrder)}
+                      className="px-3 py-1.5 rounded-lg bg-[#16a34a] hover:bg-[#15803d] text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs active:scale-95 disabled:bg-gray-400"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      {payingOrderId === selectedOrder._id ? 'Connecting…' : 'Pay Now with PortPos'}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Items List */}

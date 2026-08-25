@@ -28,7 +28,7 @@ const createOrderSchema = Joi.object({
     coordinates: Joi.array().items(Joi.number()).length(2).optional(),
     phone: Joi.string().optional().allow('')
   }).required(),
-  paymentMethod: Joi.string().valid('stripe', 'paypal', 'WALLEMIX', 'COD', 'email_money_transfer', 'crypto').default('COD'),
+  paymentMethod: Joi.string().valid('PORTPOS', 'COD').default('COD'),
   couponCode: Joi.string().optional().allow(''),
   notes: Joi.string().optional().allow(''),
   outOfStockAction: Joi.string().optional().allow(''),

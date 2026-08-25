@@ -121,9 +121,9 @@ const createOrders = asyncHandler(async (req, res) => {
   }
 
   // Validate payment method
-  const validPaymentMethods = ['stripe', 'paypal', 'WALLEMIX', 'COD', 'email_money_transfer', 'crypto'];
+  const validPaymentMethods = Object.values(PAYMENT_METHODS); // ['PORTPOS', 'COD']
   if (!validPaymentMethods.includes(paymentMethod)) {
-    throw new ApiError(400, 'Invalid payment method');
+    throw new ApiError(400, 'Invalid payment method. Allowed methods: PORTPOS, COD');
   }
 
   // Check coupon validity if provided
@@ -369,22 +369,39 @@ const cancelOrder = asyncHandler(async (req, res) => {
  * (Admin only)
  */
 const adminGetOrders = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20, status, sellerId, startDate, endDate } = req.query;
+  const { page = 1, limit = 20, status, paymentStatus, sellerId, startDate, endDate, fromDate, toDate } = req.query;
   const skip = (page - 1) * limit;
 
   const filter = {};
   if (status) filter.status = status;
+  if (paymentStatus) filter.paymentStatus = paymentStatus;
   if (sellerId) filter.sellerId = sellerId;
-  if (startDate || endDate) {
+  
+  const effectiveStart = startDate || fromDate;
+  const effectiveEnd = endDate || toDate;
+  if (effectiveStart || effectiveEnd) {
     filter.createdAt = {};
-    if (startDate) filter.createdAt.$gte = new Date(startDate);
-    if (endDate) filter.createdAt.$lte = new Date(endDate);
+    if (effectiveStart) {
+      const from = new Date(effectiveStart);
+      if (!isNaN(from.getTime())) {
+        if (effectiveStart.length <= 10) from.setHours(0, 0, 0, 0);
+        filter.createdAt.$gte = from;
+      }
+    }
+    if (effectiveEnd) {
+      const to = new Date(effectiveEnd);
+      if (!isNaN(to.getTime())) {
+        if (effectiveEnd.length <= 10) to.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = to;
+      }
+    }
   }
 
   const [orders, total] = await Promise.all([
     Order.find(filter)
-      .populate('userId', 'name email')
-      .populate('sellerId', 'shopName')
+      .populate('userId', 'name email phone avatar')
+      .populate('sellerId', 'shopName shopAddress isVerified')
+      .populate('items.productId', 'name images price')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit)),
