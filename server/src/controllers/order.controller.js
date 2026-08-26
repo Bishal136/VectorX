@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
-const { Order, ORDER_STATUS, PAYMENT_STATUS } = require('../models/Order.model');
+const { Order, ORDER_STATUS, PAYMENT_STATUS, PAYMENT_METHODS } = require('../models/Order.model');
 const Cart = require('../models/Cart.model');
 const Product = require('../models/Product.model');
 const Seller = require('../models/Seller.model');
