@@ -5,6 +5,10 @@ import { fetchProducts } from '../../features/products/productSlice';
 import { addToCart } from '../../features/cart/cartSlice';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../services/axiosInstance';
+
+import banner1 from "../../assets/bannar/Green1.png"
+import banner2 from "../../assets/bannar/Green2.jpeg"
+
 import {
   ChevronLeft,
   ChevronRight,
@@ -57,16 +61,14 @@ const HERO_SLIDES = [
     id: 1,
     title: 'Discover the Latest Deals –',
     highlight: 'Up to 50% Off!',
-    bgImage:
-      'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&auto=format&fit=crop&q=80',
+    bgImage: banner1,
     link: '/products',
   },
   {
     id: 2,
     title: 'Smart Tech & Gadgets Fest –',
     highlight: 'Save Big Today!',
-    bgImage:
-      'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=1600&auto=format&fit=crop&q=80',
+    bgImage: banner2,
     link: '/products?category=electronics',
   },
 ];
@@ -277,15 +279,14 @@ const Home = () => {
       {/* ========================================================================= */}
       {/* 1. HERO BANNER SECTION (FULL-WIDTH ATMOSPHERIC BANNER)                   */}
       {/* ========================================================================= */}
-      <section className="relative w-full h-[320px] sm:h-[400px] lg:h-[480px] bg-slate-900 overflow-hidden">
+      <section className="relative w-full h-80 sm:h-100 lg:h-120 bg-slate-900 overflow-hidden">
         {HERO_SLIDES.map((slide, index) => {
           const isActive = index === currentSlide;
           return (
             <div
               key={slide.id}
-              className={`absolute inset-0 transition-opacity duration-1000 ${
-                isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-              }`}
+              className={`absolute inset-0 transition-opacity duration-1000 ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                }`}
             >
               <img
                 src={slide.bgImage}
@@ -1003,11 +1004,10 @@ const Home = () => {
             {CUSTOMER_REVIEWS.map((review) => (
               <div
                 key={review.id}
-                className={`p-5 rounded-2xl border transition shadow-2xs space-y-3 flex flex-col justify-between ${
-                  review.highlighted
+                className={`p-5 rounded-2xl border transition shadow-2xs space-y-3 flex flex-col justify-between ${review.highlighted
                     ? 'bg-[#EBF7EE] border-emerald-300'
                     : 'bg-white border-slate-200/80'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <img
