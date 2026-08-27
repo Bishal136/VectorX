@@ -566,10 +566,18 @@ const OrderHistory = () => {
                               </div>
                             </div>
 
-                            <div className="text-right shrink-0">
+                            <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
                               <span className="text-xs sm:text-sm font-black text-slate-900 block">
                                 ৳{(item.price || 0) * (item.quantity || 1)}
                               </span>
+                              {order.status === 'Delivered' && (
+                                <Link
+                                  to={`/products/${pSlug || pId}`}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-[11px] font-bold transition shadow-2xs"
+                                >
+                                  <span>⭐ Review Product</span>
+                                </Link>
+                              )}
                             </div>
                           </div>
                         );

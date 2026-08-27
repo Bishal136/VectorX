@@ -8,6 +8,8 @@ const {
   getProductById,
   getRelatedProducts,
   getProductsBySeller,
+  uploadReviewImage,
+  uploadReviewVideo,
   submitReview,
   checkCanReview,
   getProductReviews,
@@ -18,7 +20,7 @@ const {
 const { verifyToken } = require('../middlewares/auth.middleware');
 const { isUser } = require('../middlewares/role.middleware');
 const { validate } = require('../middlewares/validate.middleware');
-const { upload } = require('../middlewares/upload.middleware');
+const { uploadSingle, uploadSingleVideo } = require('../middlewares/upload.middleware');
 
 // Joi schemas for validation
 const Joi = require('joi');
@@ -26,10 +28,26 @@ const Joi = require('joi');
 // Validation schemas
 const reviewSchema = Joi.object({
   rating: Joi.number().min(1).max(5).required(),
-  title: Joi.string().max(100).allow(''),
-  comment: Joi.string().max(500).allow(''),
+  title: Joi.string().max(100).allow('', null).optional(),
+  comment: Joi.string().max(1000).allow('', null).optional(),
   orderId: Joi.string().optional().allow('', null),
-  images: Joi.array().items(Joi.string()).optional()
+  images: Joi.array().items(
+    Joi.alternatives().try(
+      Joi.string(),
+      Joi.object({
+        url: Joi.string().required(),
+        publicId: Joi.string().optional().allow('')
+      })
+    )
+  ).optional(),
+  video: Joi.alternatives().try(
+    Joi.string().allow('', null),
+    Joi.object({
+      url: Joi.string().allow('', null).optional(),
+      publicId: Joi.string().allow('', null).optional(),
+      thumbnail: Joi.string().allow('', null).optional()
+    }).allow(null)
+  ).optional().allow(null)
 });
 
 const productQuerySchema = Joi.object({
@@ -125,6 +143,32 @@ router.get(
 );
 
 // ==================== Protected Routes (User) ====================
+
+/**
+ * @route   POST /api/products/reviews/upload/image
+ * @desc    Upload an image for a product review
+ * @access  Private (User)
+ */
+router.post(
+  '/reviews/upload/image',
+  verifyToken,
+  isUser,
+  uploadSingle('image'),
+  uploadReviewImage
+);
+
+/**
+ * @route   POST /api/products/reviews/upload/video
+ * @desc    Upload a video for a product review
+ * @access  Private (User)
+ */
+router.post(
+  '/reviews/upload/video',
+  verifyToken,
+  isUser,
+  uploadSingleVideo('video'),
+  uploadReviewVideo
+);
 
 /**
  * @route   GET /api/products/:id/can-review

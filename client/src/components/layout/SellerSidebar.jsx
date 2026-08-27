@@ -6,6 +6,8 @@ const SellerSidebar = ({ open, onClose }) => {
     { label: 'Dashboard', path: '/seller/dashboard', icon: '📊' },
     { label: 'Products', path: '/seller/products', icon: '📦' },
     { label: 'Orders', path: '/seller/orders', icon: '📋' },
+    { label: 'Customer Messages', path: '/seller/messages', icon: '💬' },
+    { label: 'Reviews & Ratings', path: '/seller/reviews', icon: '⭐' },
     { label: 'Shop Profile', path: '/seller/shop', icon: '🏪' },
   ];
 

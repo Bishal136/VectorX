@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import useAuth from '../../hooks/useAuth';
 import { logoutUser } from '../../features/auth/authSlice';
+import { fetchChatUnreadCount } from '../../features/chat/chatSlice';
 import Logo from '../common/Logo';
 
 // --- Local Icons ---
@@ -15,6 +16,12 @@ const SearchIcon = ({ className }) => (
 const ShoppingBagIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12l1 13H5L6 7zM9 7a3 3 0 116 0" />
+  </svg>
+);
+
+const MessageCircleIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
   </svg>
 );
 
@@ -37,16 +44,13 @@ const XIcon = ({ className }) => (
 );
 
 const navLinks = [
-  { label: 'Shop All', path: '/products' },
   {
-    label: 'Promotions/Bundles',
-    path: '/promotions',
-    children: [
-      { label: 'Daily Deals', path: '/promotions?type=daily' },
-      { label: 'Bundles', path: '/promotions?type=bundles' },
-      { label: 'New Customer Offer', path: '/promotions?type=new-customer' },
-    ],
+    label: 'Home',
+    path: '/',
+
   },
+  { label: 'Shop All', path: '/products' },
+
   {
     label: 'Support',
     path: '/support',
@@ -66,6 +70,7 @@ const Navbar = () => {
   // Redux থেকে কার্টের আইটেমগুলো নিচ্ছি
   const cartItems = useSelector((state) => state.cart?.items) || [];
   const cartCount = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  const chatUnread = useSelector((state) => state.chat?.unreadCounts?.customerUnread || 0);
 
   // Buyer-only areas (cart, profile, order history) should only ever show for
   // plain buyers — not sellers or admins, who have their own dashboards instead.
@@ -74,10 +79,16 @@ const Navbar = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null); 
-  const [openMobileSection, setOpenMobileSection] = useState(null); 
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const [openMobileSection, setOpenMobileSection] = useState(null);
 
   const accountRef = useRef(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(fetchChatUnreadCount());
+    }
+  }, [isAuthenticated, dispatch]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -100,55 +111,56 @@ const Navbar = () => {
   const handleLogout = () => {
     dispatch(logoutUser());
     setIsAccountOpen(false);
-    navigate('/');
+    navigate('/login');
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3 h-16 md:h-20">
-          
-          {/* Mobile menu toggle */}
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden -ml-2 p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-            aria-label="Toggle menu"
-          >
-            {isMenuOpen ? <XIcon className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
-          </button>
+    <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-2xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Top row */}
+        <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
+          {/* Left: Mobile menu toggle + Logo */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none"
+              aria-label="Toggle menu"
+            >
+              {isMenuOpen ? <XIcon className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
+            </button>
 
-          <Link to="/" className="shrink-0">
-            <Logo />
-          </Link>
+            <Logo size="md" />
+          </div>
 
-          {/* Desktop search */}
-          <form onSubmit={handleSearch} className="hidden md:flex flex-1 mx-6 justify-center">
-            <div className="relative w-1/2 mx-auto">
+          {/* Center: Search bar – desktop */}
+          <div className="hidden md:flex flex-1 max-w-xl mx-4">
+            <form onSubmit={handleSearch} className="w-full relative">
               <input
                 id="desktop-search"
                 name="search"
                 type="text"
-                placeholder="Search"
+                placeholder="Search products, brands, and categories..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full h-11 rounded-full border border-gray-300 bg-gray-50 pl-5 pr-14 text-sm placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
               />
               <button
                 type="submit"
+                className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full bg-green-600 text-white hover:bg-green-700 transition cursor-pointer"
                 aria-label="Search"
-                className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full bg-green-600 text-white hover:bg-green-700 transition"
               >
                 <SearchIcon className="w-4 h-4" />
               </button>
-            </div>
-          </form>
+            </form>
+          </div>
 
-          {/* Right cluster: account + cart */}
-          <div className="flex items-center gap-3 sm:gap-4 ml-auto md:ml-0">
+          {/* Right: Actions */}
+          <div className="flex items-center gap-3 sm:gap-6">
+            {/* Account dropdown */}
             <div className="relative" ref={accountRef}>
               <button
                 onClick={() => setIsAccountOpen(!isAccountOpen)}
-                className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-green-700 transition-colors focus:outline-none"
+                className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-green-700 transition-colors focus:outline-none cursor-pointer"
               >
                 <span className="hidden sm:inline">
                   {isAuthenticated ? user?.name || 'Your Account' : 'Your Account'}
@@ -162,7 +174,7 @@ const Navbar = () => {
                 <div className="absolute right-0 mt-3 w-52 bg-white rounded-lg shadow-lg ring-1 ring-black/5 py-1 z-30">
                   {isAuthenticated ? (
                     <>
-                      {/* Buyer-only: profile + order history. Sellers/admins get their
+                      {/* Buyer-only: profile + order history + messages. Sellers/admins get their
                           own dashboard links below instead. */}
                       {isBuyer && (
                         <>
@@ -172,15 +184,28 @@ const Navbar = () => {
                           <Link to="/orders" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
                             Orders
                           </Link>
+                          <Link to="/messages" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 flex items-center justify-between" onClick={() => setIsAccountOpen(false)}>
+                            <span>My Messages</span>
+                            {chatUnread > 0 && (
+                              <span className="px-1.5 py-0.2 rounded-full bg-emerald-600 text-white text-[10px] font-bold">
+                                {chatUnread}
+                              </span>
+                            )}
+                          </Link>
                           <Link to="/change-password" className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700" onClick={() => setIsAccountOpen(false)}>
                             Change Password
                           </Link>
                         </>
                       )}
                       {user?.role === 'seller' && (
-                        <Link to="/seller/dashboard" className="block px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50" onClick={() => setIsAccountOpen(false)}>
-                          Seller Portal
-                        </Link>
+                        <>
+                          <Link to="/seller/dashboard" className="block px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50" onClick={() => setIsAccountOpen(false)}>
+                            Seller Portal
+                          </Link>
+                          <Link to="/seller/messages" className="block px-4 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50" onClick={() => setIsAccountOpen(false)}>
+                            Customer Messages
+                          </Link>
+                        </>
                       )}
                       {user?.role === 'admin' && (
                         <Link to="/admin/dashboard" className="block px-4 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50" onClick={() => setIsAccountOpen(false)}>
@@ -188,7 +213,7 @@ const Navbar = () => {
                         </Link>
                       )}
                       <div className="my-1 border-t border-gray-100" />
-                      <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                      <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer">
                         Logout
                       </button>
                     </>
@@ -207,6 +232,23 @@ const Navbar = () => {
             </div>
 
             <span className="hidden sm:block w-px h-5 bg-gray-300" aria-hidden="true" />
+
+            {/* Messages icon — buyers only */}
+            {isAuthenticated && isBuyer && (
+              <Link
+                to="/messages"
+                className="relative text-gray-700 hover:text-green-700 transition-colors"
+                aria-label="Messages"
+                title="My Messages"
+              >
+                <MessageCircleIcon className="w-6 h-6" />
+                {chatUnread > 0 && (
+                  <span className="absolute -top-2 -right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold leading-none">
+                    {chatUnread > 99 ? '99+' : chatUnread}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {/* Cart icon — buyers only */}
             {isAuthenticated && isBuyer && (
@@ -277,7 +319,25 @@ const Navbar = () => {
 
         {/* Mobile nav */}
         {isMenuOpen && (
-          <nav className="md:hidden pb-4 border-t border-gray-100 pt-2 flex flex-col">
+          <nav className="md:hidden pb-4 border-t border-gray-100 pt-2 flex flex-col space-y-1">
+            {isAuthenticated && isBuyer && (
+              <div className="bg-emerald-50/60 rounded-xl p-2 mb-2 border border-emerald-100 flex items-center justify-between">
+                <Link
+                  to="/messages"
+                  className="flex items-center gap-2 text-xs font-bold text-emerald-800"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <MessageCircleIcon className="w-4 h-4 text-emerald-700" />
+                  <span>My Messages & Product Chats</span>
+                </Link>
+                {chatUnread > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold">
+                    {chatUnread}
+                  </span>
+                )}
+              </div>
+            )}
+
             {navLinks.map((link) => (
               <div key={link.label} className="border-b border-gray-50 last:border-0">
                 <div className="flex items-center justify-between">

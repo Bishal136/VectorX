@@ -398,6 +398,7 @@ export default function ProductListing() {
   const [addingToCartId, setAddingToCartId] = useState(null);
   const [justAddedId, setJustAddedId] = useState(null);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [isLocationBannerDismissed, setIsLocationBannerDismissed] = useState(false);
 
   // Fetch categories from server
   useEffect(() => {
@@ -659,13 +660,23 @@ export default function ProductListing() {
   return (
     <div className="bg-[#FAF9F6] min-h-screen text-slate-800 font-sans pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {/* Fallback Location Banner */}
-        {fallbackUsed && (
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3 text-amber-800 text-xs sm:text-sm">
-            <AlertCircle className="w-5 h-5 shrink-0 text-amber-600" />
-            <span>
-              Location is unavailable. Showing top rated products across all locations.
-            </span>
+        {/* Fallback Location Banner - Only shown if user specifically requested distance sorting and location failed */}
+        {fallbackUsed && !isLocationBannerDismissed && (filters.sort === 'distance' || searchParams.get('sort') === 'distance') && (
+          <div className="mb-6 p-3.5 sm:p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3 text-amber-800 text-xs sm:text-sm shadow-2xs animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 shrink-0 text-amber-600" />
+              <span>
+                Location is unavailable. Showing top rated products across all locations.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsLocationBannerDismissed(true)}
+              className="p-1 rounded-lg text-amber-600 hover:text-amber-900 hover:bg-amber-100 transition cursor-pointer shrink-0"
+              title="Dismiss banner"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 

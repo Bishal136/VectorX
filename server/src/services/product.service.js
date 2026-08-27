@@ -306,8 +306,8 @@ class ProductService {
       result = {
         products,
         total,
-        sortedBy: 'popularity',
-        fallbackUsed: true
+        sortedBy: filters.sort || 'popularity',
+        fallbackUsed: Boolean(filters.sort === 'distance' && !hasValidCoords)
       };
     }
     

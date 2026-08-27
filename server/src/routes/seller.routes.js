@@ -14,7 +14,10 @@ const {
   updateSellerProfile,
   getSellerEarnings,
   uploadProductImage,
-  uploadProductVideo
+  uploadProductVideo,
+  getSellerReviews,
+  replyToReview,
+  deleteReviewReply
 } = require('../controllers/seller.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
 const { isSeller, isVerifiedSeller } = require('../middlewares/role.middleware');
@@ -24,6 +27,10 @@ const Joi = require('joi');
 const Seller = require('../models/Seller.model');
 
 // ===================== Validation Schemas =====================
+
+const replyReviewSchema = Joi.object({
+  comment: Joi.string().required().min(1).max(1000)
+});
 
 const registerSellerSchema = Joi.object({
   shopName: Joi.string().required().min(3).max(100),
@@ -194,5 +201,10 @@ router.delete('/products/:id', deleteProduct);
 // Order management
 router.get('/orders', getSellerOrders);
 router.put('/orders/:id/status', validate(updateOrderStatusSchema), updateOrderStatus);
+
+// Reviews & Ratings management
+router.get('/reviews', getSellerReviews);
+router.post('/products/:productId/reviews/:reviewId/reply', validate(replyReviewSchema), replyToReview);
+router.delete('/products/:productId/reviews/:reviewId/reply', deleteReviewReply);
 
 module.exports = router;

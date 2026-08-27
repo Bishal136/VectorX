@@ -158,6 +158,51 @@ export const updateOrderStatus = createAsyncThunk(
   }
 );
 
+// ----- Reviews & Ratings Management -----
+export const fetchSellerReviews = createAsyncThunk(
+  'seller/fetchReviews',
+  async ({ rating, productId, hasReply, search, sort = 'newest', page = 1, limit = 20 } = {}, { rejectWithValue }) => {
+    try {
+      const params = new URLSearchParams();
+      if (page) params.append('page', page);
+      if (limit) params.append('limit', limit);
+      if (rating && rating !== 'all') params.append('rating', rating);
+      if (productId && productId !== 'all') params.append('productId', productId);
+      if (hasReply && hasReply !== 'all') params.append('hasReply', hasReply);
+      if (search) params.append('search', search);
+      if (sort) params.append('sort', sort);
+      const response = await axiosInstance.get(`/sellers/reviews?${params.toString()}`);
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch seller reviews');
+    }
+  }
+);
+
+export const replyToReview = createAsyncThunk(
+  'seller/replyToReview',
+  async ({ productId, reviewId, comment }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post(`/sellers/products/${productId}/reviews/${reviewId}/reply`, { comment });
+      return { productId, reviewId, reply: response.data.data?.reply };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to submit reply');
+    }
+  }
+);
+
+export const deleteReviewReply = createAsyncThunk(
+  'seller/deleteReviewReply',
+  async ({ productId, reviewId }, { rejectWithValue }) => {
+    try {
+      await axiosInstance.delete(`/sellers/products/${productId}/reviews/${reviewId}/reply`);
+      return { productId, reviewId };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete reply');
+    }
+  }
+);
+
 // ----- Initial State -----
 const initialState = {
   profile: null,
@@ -172,6 +217,15 @@ const initialState = {
   },
   orders: [],
   orderPagination: {
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+  },
+  reviews: [],
+  reviewStats: null,
+  sellerProductList: [],
+  reviewPagination: {
     page: 1,
     limit: 20,
     total: 0,
@@ -400,6 +454,58 @@ const sellerSlice = createSlice({
       .addCase(updateOrderStatus.rejected, (state, action) => {
         state.actionLoading = false;
         state.error = action.payload;
+      })
+
+      // ----- Reviews & Ratings -----
+      .addCase(fetchSellerReviews.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(fetchSellerReviews.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.reviews = action.payload?.reviews || [];
+        state.reviewStats = action.payload?.stats || null;
+        state.sellerProductList = action.payload?.sellerProducts || [];
+        if (action.payload?.pagination) {
+          state.reviewPagination = action.payload.pagination;
+        }
+        state.error = null;
+      })
+      .addCase(fetchSellerReviews.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload;
+      })
+      .addCase(replyToReview.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
+      .addCase(replyToReview.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        const { reviewId, reply } = action.payload;
+        const review = state.reviews.find((r) => r._id === reviewId);
+        if (review) {
+          review.reply = reply;
+        }
+        if (state.reviewStats) {
+          state.reviewStats.repliedCount = (state.reviewStats.repliedCount || 0) + 1;
+          state.reviewStats.unrepliedCount = Math.max(0, (state.reviewStats.unrepliedCount || 1) - 1);
+        }
+        state.error = null;
+      })
+      .addCase(replyToReview.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(deleteReviewReply.fulfilled, (state, action) => {
+        const { reviewId } = action.payload;
+        const review = state.reviews.find((r) => r._id === reviewId);
+        if (review) {
+          review.reply = null;
+        }
+        if (state.reviewStats) {
+          state.reviewStats.repliedCount = Math.max(0, (state.reviewStats.repliedCount || 1) - 1);
+          state.reviewStats.unrepliedCount = (state.reviewStats.unrepliedCount || 0) + 1;
+        }
       });
   },
 });

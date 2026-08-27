@@ -7,6 +7,8 @@ const { Order, ORDER_STATUS } = require('../models/Order.model');
 const Product = require('../models/Product.model');
 const Category = require('../models/Category.model');
 const mongoose = require('mongoose');
+const fs = require('fs');
+const { uploadProductImage: uploadProdImg, uploadProductVideo: uploadProdVid } = require('../config/cloudinary');
 
 /**
  * Get public active categories
@@ -205,8 +207,9 @@ const getProducts = asyncHandler(async (req, res) => {
       .populate('sellerId', 'shopName isVerified')
       .lean();
 
-    sortedBy = sort;
-    fallbackUsed = !hasLocation;
+    sortedBy = sort || 'popularity';
+    // Only set fallbackUsed if the user explicitly requested distance-based sorting but coordinates were unavailable
+    fallbackUsed = Boolean(sort === 'distance' && !hasLocation);
 
     // Transform products with distance 0 (no location available)
     products = products.map(p => ({
@@ -503,18 +506,76 @@ const getProductsBySeller = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Upload review image for buyers
+ * POST /api/products/reviews/upload/image
+ */
+const uploadReviewImage = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'No image file provided');
+  }
+
+  const result = await uploadProdImg(req.file.path);
+
+  if (req.file.path && fs.existsSync(req.file.path)) {
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  res.json({
+    success: true,
+    data: {
+      url: result.url,
+      publicId: result.publicId
+    }
+  });
+});
+
+/**
+ * Upload review video for buyers
+ * POST /api/products/reviews/upload/video
+ */
+const uploadReviewVideo = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'No video file provided');
+  }
+
+  const result = await uploadProdVid(req.file.path);
+
+  if (req.file.path && fs.existsSync(req.file.path)) {
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  res.json({
+    success: true,
+    data: {
+      url: result.url,
+      publicId: result.publicId,
+      thumbnail: result.thumbnail
+    }
+  });
+});
+
+/**
  * Submit a review for a product
  * POST /api/products/:id/reviews
- * Body: rating, title, comment, orderId
+ * Body: rating, title, comment, orderId, images, video
  */
 const submitReview = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
-  const { rating, title, comment, orderId, images } = req.body;
+  const userId = req.user._id?.toString() || req.user.id;
+  const { rating, title, comment, orderId, images, video } = req.body;
 
   // Validate rating
-  if (!rating || rating < 1 || rating > 5) {
-    throw new ApiError(400, 'Rating must be between 1 and 5');
+  const numRating = Number(rating);
+  if (!numRating || numRating < 1 || numRating > 5) {
+    throw new ApiError(400, 'Rating must be between 1 and 5 stars');
   }
 
   // Check if product exists (by ObjectId or slug)
@@ -537,7 +598,7 @@ const submitReview = asyncHandler(async (req, res) => {
   const order = await Order.findOne(orderQuery);
 
   if (!order) {
-    throw new ApiError(403, 'Only verified buyers who have received this product can submit a review.');
+    throw new ApiError(403, 'Only verified buyers who have received this product (order marked Delivered) can submit a review.');
   }
 
   // Check if user already reviewed this product
@@ -546,18 +607,60 @@ const submitReview = asyncHandler(async (req, res) => {
   );
 
   if (existingReview) {
-    throw new ApiError(400, 'You have already reviewed this product.');
+    throw new ApiError(400, 'You have already submitted a review for this product.');
+  }
+
+  // Format images
+  let formattedImages = [];
+  if (Array.isArray(images)) {
+    formattedImages = images
+      .map((img, idx) => {
+        if (typeof img === 'string' && img.trim()) {
+          return {
+            url: img.trim(),
+            publicId: `rev_img_${Date.now()}_${idx}`
+          };
+        }
+        if (img && typeof img === 'object' && img.url) {
+          return {
+            url: img.url,
+            publicId: img.publicId || `rev_img_${Date.now()}_${idx}`
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
+
+  // Format video
+  let formattedVideo = { url: null, publicId: null, thumbnail: null };
+  if (typeof video === 'string' && video.trim()) {
+    formattedVideo = {
+      url: video.trim(),
+      publicId: `rev_vid_${Date.now()}`,
+      thumbnail: null
+    };
+  } else if (video && typeof video === 'object' && video.url) {
+    formattedVideo = {
+      url: video.url.trim(),
+      publicId: video.publicId || `rev_vid_${Date.now()}`,
+      thumbnail: video.thumbnail || null
+    };
   }
 
   // Add review
   const reviewData = {
     userId,
     orderId: order._id,
-    rating,
-    title: title || '',
-    comment: comment || '',
-    images: images || [],
+    rating: numRating,
+    title: title ? String(title).trim() : '',
+    comment: comment ? String(comment).trim() : '',
+    images: formattedImages,
+    video: formattedVideo,
     isVerifiedPurchase: true,
+    helpful: 0,
+    helpfulUsers: [],
+    reported: false,
     createdAt: new Date(),
     updatedAt: new Date()
   };
@@ -566,35 +669,36 @@ const submitReview = asyncHandler(async (req, res) => {
   product.updateRatingStats();
   await product.save();
 
-  // Get the newly added review (last in array)
+  // Populate newly added review
+  await product.populate({
+    path: 'reviews.userId',
+    select: 'name email avatar'
+  });
+
   const newReview = product.reviews[product.reviews.length - 1];
 
-  // Mark order as reviewed if all products are reviewed
-  const allItems = order.items.map(item => item.productId.toString());
-  const reviewedItems = product.reviews
-    .filter(r => r.orderId && r.orderId.toString() === order._id.toString())
-    .map(r => r.productId ? r.productId.toString() : '');
+  // Mark order as reviewed if all products in order are reviewed
+  try {
+    const allItems = order.items.map(item => item.productId.toString());
+    const reviewedItems = product.reviews
+      .filter(r => r.orderId && r.orderId.toString() === order._id.toString())
+      .map(r => r.productId ? r.productId.toString() : '');
 
-  const allReviewed = allItems.every(itemId => reviewedItems.includes(itemId));
-
-  if (allReviewed) {
-    order.isReviewed = true;
-    await order.save();
+    const allReviewed = allItems.every(itemId => reviewedItems.includes(itemId));
+    if (allReviewed) {
+      order.isReviewed = true;
+      await order.save();
+    }
+  } catch {
+    // Non-fatal
   }
 
   res.status(201).json({
     success: true,
     data: {
-      review: {
-        id: newReview._id,
-        rating: newReview.rating,
-        title: newReview.title,
-        comment: newReview.comment,
-        isVerifiedPurchase: newReview.isVerifiedPurchase,
-        createdAt: newReview.createdAt
-      }
+      review: newReview
     },
-    message: 'Review submitted successfully'
+    message: 'Verified review submitted successfully'
   });
 });
 
@@ -604,7 +708,7 @@ const submitReview = asyncHandler(async (req, res) => {
  */
 const checkCanReview = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
+  const userId = req.user._id?.toString() || req.user.id;
 
   const isObjectId = mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id);
   const product = isObjectId ? await Product.findById(id) : await Product.findOne({ slug: id });
@@ -617,7 +721,7 @@ const checkCanReview = asyncHandler(async (req, res) => {
     userId: userId,
     'items.productId': product._id,
     status: { $in: [ORDER_STATUS.DELIVERED, 'Delivered', 'Completed'] }
-  });
+  }).sort({ createdAt: -1 });
 
   const hasPurchased = Boolean(order);
   const alreadyReviewed = Boolean(
@@ -640,26 +744,39 @@ const checkCanReview = asyncHandler(async (req, res) => {
 /**
  * Get product reviews
  * GET /api/products/:id/reviews
- * Query: page, limit, sort
+ * Query: page, limit, sort, hasMedia
  */
 const getProductReviews = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const page = parseInt(req.query.page, 10) || 1;
   const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
-  const sort = req.query.sort || 'newest'; // newest, helpful, highest, lowest
+  const sort = req.query.sort || 'newest'; // newest, helpful, highest, lowest, media
+  const hasMedia = req.query.hasMedia === 'true';
 
   const isObjectId = mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id);
   const query = isObjectId ? Product.findById(id) : Product.findOne({ slug: id });
-  const product = await query.populate({
-    path: 'reviews.userId',
-    select: 'name'
-  });
+  const product = await query
+    .populate({
+      path: 'reviews.userId',
+      select: 'name email avatar'
+    })
+    .populate({
+      path: 'reviews.reply.sellerId',
+      select: 'shopName'
+    });
 
   if (!product) {
     throw new ApiError(404, 'Product not found');
   }
 
   let reviews = product.reviews || [];
+
+  // Filter if only reviews with images/videos requested
+  if (hasMedia) {
+    reviews = reviews.filter(
+      r => (r.images && r.images.length > 0) || (r.video && r.video.url)
+    );
+  }
 
   // Sort reviews
   switch (sort) {
@@ -672,13 +789,20 @@ const getProductReviews = asyncHandler(async (req, res) => {
     case 'lowest':
       reviews = reviews.sort((a, b) => a.rating - b.rating);
       break;
+    case 'media':
+      reviews = reviews.sort((a, b) => {
+        const aHasMedia = (a.images?.length > 0 || a.video?.url) ? 1 : 0;
+        const bHasMedia = (b.images?.length > 0 || b.video?.url) ? 1 : 0;
+        return bHasMedia - aHasMedia;
+      });
+      break;
     case 'newest':
     default:
       reviews = reviews.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
 
   const totalCount = reviews.length;
-  const totalPages = Math.ceil(totalCount / limit);
+  const totalPages = Math.ceil(totalCount / limit) || 1;
   const startIndex = (page - 1) * limit;
   const endIndex = startIndex + limit;
   const paginatedReviews = reviews.slice(startIndex, endIndex);
@@ -705,7 +829,7 @@ const getProductReviews = asyncHandler(async (req, res) => {
  */
 const reportReview = asyncHandler(async (req, res) => {
   const { productId, reviewId } = req.params;
-  const userId = req.user.id;
+  const userId = req.user._id?.toString() || req.user.id;
 
   const isObjectId = mongoose.Types.ObjectId.isValid(productId) && /^[0-9a-fA-F]{24}$/.test(productId);
   const product = isObjectId ? await Product.findById(productId) : await Product.findOne({ slug: productId });
@@ -719,7 +843,7 @@ const reportReview = asyncHandler(async (req, res) => {
   }
 
   // Don't allow reporting your own review
-  if (review.userId.toString() === userId) {
+  if (review.userId && review.userId.toString() === userId) {
     throw new ApiError(400, 'You cannot report your own review');
   }
 
@@ -728,16 +852,17 @@ const reportReview = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: 'Review reported successfully'
+    message: 'Review reported successfully for moderation'
   });
 });
 
 /**
- * Mark review as helpful
+ * Mark review as helpful (or toggle helpful)
  * POST /api/products/:productId/reviews/:reviewId/helpful
  */
 const markReviewHelpful = asyncHandler(async (req, res) => {
   const { productId, reviewId } = req.params;
+  const userId = req.user._id?.toString() || req.user.id;
 
   const isObjectId = mongoose.Types.ObjectId.isValid(productId) && /^[0-9a-fA-F]{24}$/.test(productId);
   const product = isObjectId ? await Product.findById(productId) : await Product.findOne({ slug: productId });
@@ -750,13 +875,35 @@ const markReviewHelpful = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Review not found');
   }
 
-  review.helpful = (review.helpful || 0) + 1;
+  if (!review.helpfulUsers) {
+    review.helpfulUsers = [];
+  }
+
+  const alreadyVoted = review.helpfulUsers.some(
+    u => u && u.toString() === userId.toString()
+  );
+
+  if (alreadyVoted) {
+    // Un-vote
+    review.helpfulUsers = review.helpfulUsers.filter(
+      u => u && u.toString() !== userId.toString()
+    );
+    review.helpful = Math.max(0, (review.helpful || 1) - 1);
+  } else {
+    // Vote
+    review.helpfulUsers.push(userId);
+    review.helpful = (review.helpful || 0) + 1;
+  }
+
   await product.save();
 
   res.status(200).json({
     success: true,
-    data: { helpful: review.helpful },
-    message: 'Review marked as helpful'
+    data: {
+      helpful: review.helpful,
+      isHelpful: !alreadyVoted
+    },
+    message: alreadyVoted ? 'Helpful vote removed' : 'Marked review as helpful'
   });
 });
 
@@ -766,6 +913,8 @@ module.exports = {
   getProductById,
   getRelatedProducts,
   getProductsBySeller,
+  uploadReviewImage,
+  uploadReviewVideo,
   submitReview,
   checkCanReview,
   getProductReviews,

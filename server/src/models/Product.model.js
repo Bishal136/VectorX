@@ -47,23 +47,65 @@ const productReviewSchema = new mongoose.Schema({
   comment: {
     type: String,
     trim: true,
-    maxlength: 500
+    maxlength: 1000
   },
   images: [{
-    url: String,
-    publicId: String
+    url: {
+      type: String,
+      required: true
+    },
+    publicId: {
+      type: String,
+      default: () => `rev_img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+    }
   }],
+  video: {
+    url: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    publicId: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    thumbnail: {
+      type: String,
+      trim: true,
+      default: null
+    }
+  },
   isVerifiedPurchase: {
     type: Boolean,
-    default: false
+    default: true
   },
   helpful: {
     type: Number,
     default: 0
   },
+  helpfulUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   reported: {
     type: Boolean,
     default: false
+  },
+  reply: {
+    comment: {
+      type: String,
+      trim: true,
+      maxlength: 1000
+    },
+    sellerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Seller'
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
   },
   createdAt: {
     type: Date,
@@ -481,7 +523,8 @@ productSchema.methods.addReview = function(reviewData) {
     title: reviewData.title,
     comment: reviewData.comment,
     images: reviewData.images || [],
-    isVerifiedPurchase: reviewData.isVerifiedPurchase || false
+    video: reviewData.video || { url: null, publicId: null, thumbnail: null },
+    isVerifiedPurchase: reviewData.isVerifiedPurchase !== undefined ? reviewData.isVerifiedPurchase : true
   });
   
   this.updateRatingStats();

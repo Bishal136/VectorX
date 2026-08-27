@@ -714,6 +714,255 @@ const uploadProductVideo = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Get all customer reviews for this seller's products
+ * GET /api/sellers/reviews
+ * Query: rating, productId, hasReply, search, sort, page, limit
+ */
+const getSellerReviews = asyncHandler(async (req, res) => {
+  const seller = await Seller.findOne({ user: req.user.id });
+  if (!seller) {
+    throw new ApiError(404, 'Seller profile not found');
+  }
+
+  const {
+    rating,
+    productId,
+    hasReply,
+    search,
+    sort = 'newest',
+    page = 1,
+    limit = 20
+  } = req.query;
+
+  const pageNum = parseInt(page, 10) || 1;
+  const limitNum = Math.min(parseInt(limit, 10) || 20, 100);
+
+  // Fetch all products for this seller with populated reviews
+  const products = await Product.find({ sellerId: seller._id })
+    .populate({
+      path: 'reviews.userId',
+      select: 'name email avatar'
+    })
+    .lean();
+
+  // Aggregate all reviews across all products
+  const allReviews = [];
+  const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+  products.forEach(p => {
+    (p.reviews || []).forEach(r => {
+      if (r.rating && ratingDistribution[r.rating] !== undefined) {
+        ratingDistribution[r.rating] += 1;
+      }
+
+      let primaryImg = null;
+      if (p.images && p.images.length > 0) {
+        primaryImg = typeof p.images[0] === 'string' ? p.images[0] : (p.images[0].url || null);
+      }
+
+      allReviews.push({
+        _id: r._id,
+        productId: p._id,
+        productName: p.name,
+        productSlug: p.slug,
+        productPrice: p.price,
+        productImage: primaryImg,
+        rating: r.rating,
+        title: r.title,
+        comment: r.comment,
+        images: r.images || [],
+        video: r.video || null,
+        isVerifiedPurchase: r.isVerifiedPurchase !== false,
+        helpful: r.helpful || 0,
+        reported: r.reported || false,
+        user: r.userId ? {
+          _id: r.userId._id,
+          name: r.userId.name,
+          email: r.userId.email,
+          avatar: r.userId.avatar
+        } : null,
+        reply: r.reply || null,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt
+      });
+    });
+  });
+
+  const totalReviews = allReviews.length;
+  const totalScore = allReviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+  const averageRating = totalReviews > 0 ? parseFloat((totalScore / totalReviews).toFixed(1)) : 0;
+  const repliedCount = allReviews.filter(r => r.reply && r.reply.comment).length;
+  const unrepliedCount = totalReviews - repliedCount;
+  const responseRate = totalReviews > 0 ? Math.round((repliedCount / totalReviews) * 100) : 0;
+
+  // Filter reviews
+  let filtered = [...allReviews];
+
+  if (rating && !isNaN(parseInt(rating, 10))) {
+    const targetRating = parseInt(rating, 10);
+    filtered = filtered.filter(r => r.rating === targetRating);
+  }
+
+  if (productId && mongoose.Types.ObjectId.isValid(productId)) {
+    filtered = filtered.filter(r => r.productId.toString() === productId.toString());
+  }
+
+  if (hasReply === 'true') {
+    filtered = filtered.filter(r => r.reply && r.reply.comment);
+  } else if (hasReply === 'false') {
+    filtered = filtered.filter(r => !r.reply || !r.reply.comment);
+  }
+
+  if (search && String(search).trim()) {
+    const q = String(search).trim().toLowerCase();
+    filtered = filtered.filter(r =>
+      (r.productName && r.productName.toLowerCase().includes(q)) ||
+      (r.title && r.title.toLowerCase().includes(q)) ||
+      (r.comment && r.comment.toLowerCase().includes(q)) ||
+      (r.user?.name && r.user.name.toLowerCase().includes(q))
+    );
+  }
+
+  // Sort
+  switch (sort) {
+    case 'oldest':
+      filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      break;
+    case 'highest':
+      filtered.sort((a, b) => b.rating - a.rating);
+      break;
+    case 'lowest':
+      filtered.sort((a, b) => a.rating - b.rating);
+      break;
+    case 'unreplied':
+      filtered.sort((a, b) => {
+        const aReplied = a.reply && a.reply.comment ? 1 : 0;
+        const bReplied = b.reply && b.reply.comment ? 1 : 0;
+        return aReplied - bReplied;
+      });
+      break;
+    case 'newest':
+    default:
+      filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  const filteredTotal = filtered.length;
+  const totalPages = Math.ceil(filteredTotal / limitNum) || 1;
+  const skip = (pageNum - 1) * limitNum;
+  const paginatedReviews = filtered.slice(skip, skip + limitNum);
+
+  res.json({
+    success: true,
+    data: {
+      reviews: paginatedReviews,
+      stats: {
+        totalReviews,
+        averageRating,
+        ratingDistribution,
+        repliedCount,
+        unrepliedCount,
+        responseRate
+      },
+      sellerProducts: products.map(p => ({
+        _id: p._id,
+        name: p.name,
+        slug: p.slug
+      }))
+    },
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total: filteredTotal,
+      totalPages
+    }
+  });
+});
+
+/**
+ * Seller reply to a review
+ * POST /api/sellers/products/:productId/reviews/:reviewId/reply
+ * Body: { comment }
+ */
+const replyToReview = asyncHandler(async (req, res) => {
+  const { productId, reviewId } = req.params;
+  const { comment } = req.body;
+
+  if (!comment || !String(comment).trim()) {
+    throw new ApiError(400, 'Reply comment is required');
+  }
+
+  const seller = await Seller.findOne({ user: req.user.id });
+  if (!seller) {
+    throw new ApiError(404, 'Seller profile not found');
+  }
+
+  const product = await Product.findOne({
+    _id: productId,
+    sellerId: seller._id
+  });
+
+  if (!product) {
+    throw new ApiError(404, 'Product not found or unauthorized');
+  }
+
+  const review = product.reviews.id(reviewId);
+  if (!review) {
+    throw new ApiError(404, 'Review not found');
+  }
+
+  review.reply = {
+    comment: String(comment).trim(),
+    sellerId: seller._id,
+    createdAt: new Date()
+  };
+
+  await product.save();
+
+  res.json({
+    success: true,
+    data: {
+      reply: review.reply
+    },
+    message: 'Reply posted successfully'
+  });
+});
+
+/**
+ * Delete a seller's reply to a review
+ * DELETE /api/sellers/products/:productId/reviews/:reviewId/reply
+ */
+const deleteReviewReply = asyncHandler(async (req, res) => {
+  const { productId, reviewId } = req.params;
+
+  const seller = await Seller.findOne({ user: req.user.id });
+  if (!seller) {
+    throw new ApiError(404, 'Seller profile not found');
+  }
+
+  const product = await Product.findOne({
+    _id: productId,
+    sellerId: seller._id
+  });
+
+  if (!product) {
+    throw new ApiError(404, 'Product not found or unauthorized');
+  }
+
+  const review = product.reviews.id(reviewId);
+  if (!review) {
+    throw new ApiError(404, 'Review not found');
+  }
+
+  review.reply = undefined;
+  await product.save();
+
+  res.json({
+    success: true,
+    message: 'Reply removed successfully'
+  });
+});
+
 module.exports = {
   registerSeller,
   getDashboardStats,
@@ -727,5 +976,8 @@ module.exports = {
   updateSellerProfile,
   getSellerEarnings,
   uploadProductImage,
-  uploadProductVideo
+  uploadProductVideo,
+  getSellerReviews,
+  replyToReview,
+  deleteReviewReply
 };

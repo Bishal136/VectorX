@@ -19,6 +19,7 @@ import Checkout from '../pages/user/Checkout';
 import Profile from '../pages/user/Profile';
 import ChangePassword from '../pages/user/ChangePassword';
 import OrderHistory from '../pages/user/OrderHistory';
+import UserMessages from '../pages/user/Messages';
 import PaymentSuccess from '../pages/user/PaymentSuccess';
 import PaymentFailed from '../pages/user/PaymentFailed';
 import PaymentCancel from '../pages/user/PaymentCancel';
@@ -27,6 +28,8 @@ import PaymentCancel from '../pages/user/PaymentCancel';
 import SellerDashboard from '../pages/seller/SellerDashboard';
 import SellerProducts from '../pages/seller/Products';
 import SellerOrders from '../pages/seller/Orders';
+import SellerReviews from '../pages/seller/Reviews';
+import SellerMessages from '../pages/seller/Messages';
 import ShopProfile from '../pages/seller/ShopProfile';
 import RegisterSeller from '../pages/seller/RegisterSeller';
 
@@ -70,6 +73,8 @@ const AppRoutes = () => {
           <Route path="/profile" element={<Profile />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/orders" element={<OrderHistory />} />
+          <Route path="/messages" element={<UserMessages />} />
+          <Route path="/user/messages" element={<UserMessages />} />
           <Route path="/become-seller" element={<RegisterSeller />} />
           <Route path="/seller/register" element={<RegisterSeller />} />
         </Route>
@@ -81,6 +86,8 @@ const AppRoutes = () => {
           <Route path="/seller/dashboard" element={<SellerDashboard />} />
           <Route path="/seller/products" element={<SellerProducts />} />
           <Route path="/seller/orders" element={<SellerOrders />} />
+          <Route path="/seller/messages" element={<SellerMessages />} />
+          <Route path="/seller/reviews" element={<SellerReviews />} />
           <Route path="/seller/shop" element={<ShopProfile />} />
         </Route>
       </Route>

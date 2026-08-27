@@ -10,6 +10,7 @@ import productReducer from '../features/products/productSlice';
 import cartReducer from '../features/cart/cartSlice';
 import orderReducer from '../features/order/orderSlice';
 import paymentReducer from '../features/payment/paymentSlice';
+import chatReducer from '../features/chat/chatSlice';
 //
 
 // Import RTK Query API reducers if you use them
@@ -26,6 +27,7 @@ const rootReducer = combineReducers({
   orders: orderReducer,
   order: orderReducer,
   payment: paymentReducer,
+  chat: chatReducer,
 });
 
 export default rootReducer;

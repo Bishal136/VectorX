@@ -119,16 +119,11 @@ export const fetchProductReviews = createAsyncThunk(
 // Submit a review (authenticated)
 export const submitReview = createAsyncThunk(
   'products/submitReview',
-  async ({ productId, rating, title, comment, orderId, images = [] }, { rejectWithValue }) => {
+  async ({ productId, rating, title, comment, orderId, images = [], video = null, reviewData }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.post(`/products/${productId}/reviews`, {
-        rating,
-        title,
-        comment,
-        orderId,
-        images,
-      });
-      return response.data.data.review; // the created review object
+      const payload = reviewData || { rating, title, comment, orderId, images, video };
+      const response = await axiosInstance.post(`/products/${productId}/reviews`, payload);
+      return response.data.data?.review || response.data.data; // the created review object
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to submit review');
     }

@@ -175,6 +175,7 @@ const initialState = {
   user: null,               // { id, name, email, role, isVerified, ... }
   token: getStoredToken() || null,
   refreshToken: getStoredRefreshToken() || null,
+  isAuthenticated: Boolean(getStoredToken()),
   location: {
     lat: null,
     lng: null,
@@ -205,12 +206,14 @@ const authSlice = createSlice({
       state.user = user;
       state.token = token || state.token;
       state.refreshToken = refreshToken || state.refreshToken;
+      state.isAuthenticated = Boolean(state.token || user);
     },
     // Clear auth state manually (used after logout)
     clearAuth: (state) => {
       state.user = null;
       state.token = null;
       state.refreshToken = null;
+      state.isAuthenticated = false;
       state.location = initialState.location;
       state.status = 'idle';
       state.error = null;
@@ -266,6 +269,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.accessToken;
         state.refreshToken = action.payload.refreshToken;
+        state.isAuthenticated = true;
         state.error = null;
       })
       .addCase(loginUser.rejected, (state, action) => {
@@ -276,6 +280,7 @@ const authSlice = createSlice({
       // ----- Refresh Token -----
       .addCase(refreshToken.fulfilled, (state, action) => {
         state.token = action.payload; // new access token
+        state.isAuthenticated = true;
         state.error = null;
       })
       .addCase(refreshToken.rejected, (state, action) => {
@@ -283,6 +288,7 @@ const authSlice = createSlice({
         state.token = null;
         state.refreshToken = null;
         state.user = null;
+        state.isAuthenticated = false;
         state.status = 'failed';
         state.error = action.payload;
         clearTokens();
@@ -296,6 +302,7 @@ const authSlice = createSlice({
         state.user = null;
         state.token = null;
         state.refreshToken = null;
+        state.isAuthenticated = false;
         state.location = initialState.location;
         state.status = 'idle';
         state.error = null;
@@ -306,6 +313,7 @@ const authSlice = createSlice({
         state.user = null;
         state.token = null;
         state.refreshToken = null;
+        state.isAuthenticated = false;
         state.status = 'failed';
         state.error = action.payload;
         clearTokens();
@@ -316,6 +324,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.accessToken;
         state.refreshToken = action.payload.refreshToken;
+        state.isAuthenticated = true;
         state.status = 'succeeded';
         state.error = null;
       })
@@ -327,6 +336,7 @@ const authSlice = createSlice({
       // ----- Fetch Current User (session rehydration on reload) -----
       .addCase(fetchCurrentUser.fulfilled, (state, action) => {
         state.user = action.payload;
+        state.isAuthenticated = true;
         state.isInitializing = false;
       })
       .addCase(fetchCurrentUser.rejected, (state, action) => {
@@ -334,6 +344,7 @@ const authSlice = createSlice({
         // (clears tokens + redirects). This covers other failures (network error,
         // etc.) so isInitializing never gets stuck true.
         state.user = null;
+        state.isAuthenticated = false;
         state.isInitializing = false;
         state.error = action.payload;
       });
