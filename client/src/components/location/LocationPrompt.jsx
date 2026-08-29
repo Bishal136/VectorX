@@ -16,16 +16,23 @@ const LocationPrompt = () => {
   if (hasLocation || dismissed) return null;
 
   const handleUseGeolocation = async () => {
-    const coords = await getLocation();
-    if (coords) {
-      dispatch(
-        setLocation({
-          lat: coords.latitude,
-          lng: coords.longitude,
-          source: 'geo',
-          pincode: null,
-        })
-      );
+    try {
+      const coords = await getLocation();
+      if (coords) {
+        dispatch(
+          setLocation({
+            lat: coords.latitude || coords.lat,
+            lng: coords.longitude || coords.lng,
+            source: 'geo',
+            pincode: null,
+          })
+        );
+      } else {
+        // If permission was denied or unavailable, gracefully open pincode entry
+        setIsPincodeMode(true);
+      }
+    } catch {
+      setIsPincodeMode(true);
     }
   };
 

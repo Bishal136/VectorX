@@ -3,7 +3,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const Seller = require('../models/Seller.model');
 const Product = require('../models/Product.model');
-const { Order } = require('../models/Order.model');
+const { Order, ORDER_STATUS, PAYMENT_STATUS } = require('../models/Order.model');
 const User = require('../models/User.model');
 const productService = require('../services/product.service');
 const { uploadProductImage: uploadProdImg, uploadProductVideo: uploadProdVid } = require('../config/cloudinary');
@@ -121,6 +121,11 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     o.status === 'Pending' || o.status === 'Processing'
   ).length;
 
+  // Get pending return requests count
+  const pendingReturnRequests = orders.filter(o =>
+    o.status === 'Return_Requested' || (o.returnRequest && o.returnRequest.status === 'pending')
+  ).length;
+
   // Get top products
   const productSales = {};
   orders.forEach(order => {
@@ -158,6 +163,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       totalOrders,
       totalRevenue,
       pendingOrders,
+      pendingReturnRequests,
       totalProducts,
       topProducts,
       lowStockProducts,
@@ -350,6 +356,10 @@ const deleteProduct = asyncHandler(async (req, res) => {
  * Get seller's orders
  * GET /api/sellers/orders
  */
+/**
+ * Get seller's orders
+ * GET /api/sellers/orders
+ */
 const getSellerOrders = asyncHandler(async (req, res) => {
   const seller = await Seller.findOne({ user: req.user.id });
   if (!seller) {
@@ -361,13 +371,20 @@ const getSellerOrders = asyncHandler(async (req, res) => {
 
   const filter = { sellerId: seller._id };
   if (status && status !== 'all') {
-    filter.status = status;
+    if (status.toLowerCase() === 'returns' || status.toLowerCase() === 'return_requested' || status.toLowerCase() === 'return_requests') {
+      filter.$or = [
+        { status: { $in: [ORDER_STATUS.RETURN_REQUESTED, ORDER_STATUS.RETURN_APPROVED, ORDER_STATUS.RETURN_REJECTED] } },
+        { 'returnRequest.isRequested': true }
+      ];
+    } else {
+      filter.status = status;
+    }
   }
 
   const [orders, total] = await Promise.all([
     Order.find(filter)
-      .populate('userId', 'name email phone')
-      .populate('items.productId', 'name images')
+      .populate('userId', 'name email phone avatar')
+      .populate('items.productId', 'name images price')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 }),
@@ -397,17 +414,20 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status, notes, trackingNumber, cancellationReason } = req.body;
 
   const validStatusesMap = {
-    'pending': 'Pending',
-    'processing': 'Processing',
-    'shipped': 'Shipped',
-    'delivered': 'Delivered',
-    'cancelled': 'Cancelled',
-    'refunded': 'Refunded'
+    'pending': ORDER_STATUS.PENDING,
+    'processing': ORDER_STATUS.PROCESSING,
+    'shipped': ORDER_STATUS.SHIPPED,
+    'delivered': ORDER_STATUS.DELIVERED,
+    'cancelled': ORDER_STATUS.CANCELLED,
+    'return_requested': ORDER_STATUS.RETURN_REQUESTED,
+    'return_approved': ORDER_STATUS.RETURN_APPROVED,
+    'return_rejected': ORDER_STATUS.RETURN_REJECTED,
+    'refunded': ORDER_STATUS.REFUNDED
   };
 
   const normalizedStatus = validStatusesMap[String(status || '').toLowerCase().trim()];
   if (!normalizedStatus) {
-    throw new ApiError(400, 'Invalid order status. Allowed: Pending, Processing, Shipped, Delivered, Cancelled, Refunded');
+    throw new ApiError(400, 'Invalid order status. Allowed: Pending, Processing, Shipped, Delivered, Cancelled, Return_Requested, Return_Approved, Return_Rejected, Refunded');
   }
 
   const seller = await Seller.findOne({ user: req.user.id });
@@ -428,18 +448,36 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   order.status = normalizedStatus;
 
   // Handle specific status side-effects
-  if (normalizedStatus === 'Delivered') {
+  if (normalizedStatus === ORDER_STATUS.DELIVERED) {
     order.deliveryDate = new Date();
     if (order.paymentMethod === 'COD' && order.paymentStatus === 'pending') {
       order.paymentStatus = 'paid';
     }
-  } else if (normalizedStatus === 'Shipped') {
+  } else if (normalizedStatus === ORDER_STATUS.SHIPPED) {
     if (trackingNumber) {
       order.trackingNumber = trackingNumber.trim();
     }
-  } else if (normalizedStatus === 'Cancelled') {
+  } else if (normalizedStatus === ORDER_STATUS.CANCELLED) {
     if (cancellationReason || notes) {
       order.cancellationReason = (cancellationReason || notes).trim();
+    }
+    // Restore product stock on cancellation
+    for (const item of order.items) {
+      if (item.productId) {
+        await Product.findByIdAndUpdate(
+          item.productId,
+          { $inc: { stock: item.quantity } }
+        );
+      }
+    }
+  } else if (normalizedStatus === ORDER_STATUS.REFUNDED) {
+    order.paymentStatus = PAYMENT_STATUS.REFUNDED;
+    order.refundDate = new Date();
+    order.refundAmount = order.refundAmount || order.totalAmount;
+    if (order.returnRequest) {
+      order.returnRequest.status = 'refunded';
+      order.returnRequest.refundDate = new Date();
+      order.returnRequest.refundAmount = order.refundAmount;
     }
   }
 
@@ -448,13 +486,219 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   await order.save();
-  await order.populate('userId', 'name email phone');
+  await order.populate('userId', 'name email phone avatar');
   await order.populate('items.productId', 'name images price');
 
   res.json({
     success: true,
     data: order,
     message: `Order status updated to ${normalizedStatus}`
+  });
+});
+
+/**
+ * Handle buyer return request (seller approval / rejection)
+ * PUT /api/sellers/orders/:id/return-decision
+ * Body: { decision: 'approved' | 'rejected', comment, refundAmount, restockItems, action }
+ */
+const handleReturnDecision = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const {
+    decision,
+    comment,
+    refundAmount,
+    restockItems = true,
+    action = 'approve_and_refund'
+  } = req.body;
+
+  if (!['approved', 'rejected'].includes(decision)) {
+    throw new ApiError(400, 'Decision must be "approved" or "rejected"');
+  }
+
+  const seller = await Seller.findOne({ user: req.user.id });
+  if (!seller) {
+    throw new ApiError(404, 'Seller profile not found');
+  }
+
+  const order = await Order.findOne({
+    _id: id,
+    sellerId: seller._id
+  });
+
+  if (!order) {
+    throw new ApiError(404, 'Order not found or unauthorized');
+  }
+
+  if (!order.canSellerDecideReturn()) {
+    throw new ApiError(400, 'Order does not have a pending return request (Current status: ' + order.status + ')');
+  }
+
+  const Payment = require('../models/Payment.model');
+
+  if (decision === 'approved') {
+    const effectiveRefundAmount = refundAmount !== undefined && Number(refundAmount) >= 0
+      ? Number(refundAmount)
+      : order.totalAmount;
+
+    if (action === 'approve_return') {
+      // Stage 1: Return approved, awaiting customer physical shipment
+      order.status = ORDER_STATUS.RETURN_APPROVED;
+      order.returnRequest = {
+        ...(order.returnRequest?.toObject ? order.returnRequest.toObject() : order.returnRequest || {}),
+        isRequested: true,
+        status: 'approved',
+        refundAmount: effectiveRefundAmount,
+        sellerResponse: {
+          decision: 'approved',
+          comment: comment ? String(comment).trim() : 'Return approved. Please ship the item back to our store address.',
+          respondedAt: new Date()
+        }
+      };
+    } else {
+      // Stage 2 / Direct: Approve and issue refund immediately
+      order.status = ORDER_STATUS.REFUNDED;
+      order.paymentStatus = PAYMENT_STATUS.REFUNDED;
+      order.refundAmount = effectiveRefundAmount;
+      order.refundDate = new Date();
+      order.returnRequest = {
+        ...(order.returnRequest?.toObject ? order.returnRequest.toObject() : order.returnRequest || {}),
+        isRequested: true,
+        status: 'refunded',
+        refundAmount: effectiveRefundAmount,
+        refundDate: new Date(),
+        sellerResponse: {
+          decision: 'approved',
+          comment: comment ? String(comment).trim() : 'Return request approved and refund issued.',
+          respondedAt: new Date()
+        }
+      };
+
+      // Restock items
+      if (restockItems !== false) {
+        for (const item of order.items) {
+          if (item.productId) {
+            await Product.findByIdAndUpdate(
+              item.productId,
+              { $inc: { stock: item.quantity } }
+            );
+          }
+        }
+      }
+
+      // Update Payment record
+      await Payment.findOneAndUpdate(
+        { orderId: order._id },
+        { status: 'refunded', refundedAt: new Date() }
+      );
+    }
+  } else {
+    // Rejected
+    order.status = ORDER_STATUS.RETURN_REJECTED;
+    order.returnRequest = {
+      ...(order.returnRequest?.toObject ? order.returnRequest.toObject() : order.returnRequest || {}),
+      isRequested: true,
+      status: 'rejected',
+      sellerResponse: {
+        decision: 'rejected',
+        comment: comment ? String(comment).trim() : 'Return request was declined by the seller.',
+        respondedAt: new Date()
+      }
+    };
+  }
+
+  await order.save();
+  await order.populate('userId', 'name email phone avatar');
+  await order.populate('items.productId', 'name images price');
+
+  res.json({
+    success: true,
+    data: order,
+    message: decision === 'approved'
+      ? (action === 'approve_return'
+          ? 'Return request approved. Customer notified to return items.'
+          : `Return approved and refund of ৳${order.refundAmount} issued successfully.`)
+      : 'Return request has been declined.'
+  });
+});
+
+/**
+ * Issue refund directly or finalize refund for approved return (seller)
+ * PUT /api/sellers/orders/:id/refund
+ * Body: { refundAmount, notes, restockItems }
+ */
+const issueOrderRefund = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { refundAmount, notes, restockItems = true } = req.body;
+
+  const seller = await Seller.findOne({ user: req.user.id });
+  if (!seller) {
+    throw new ApiError(404, 'Seller profile not found');
+  }
+
+  const order = await Order.findOne({
+    _id: id,
+    sellerId: seller._id
+  });
+
+  if (!order) {
+    throw new ApiError(404, 'Order not found or unauthorized');
+  }
+
+  if (order.status === ORDER_STATUS.CANCELLED) {
+    throw new ApiError(400, 'Cannot refund a cancelled order');
+  }
+
+  const effectiveRefundAmount = refundAmount !== undefined && Number(refundAmount) >= 0
+    ? Number(refundAmount)
+    : order.totalAmount;
+
+  order.status = ORDER_STATUS.REFUNDED;
+  order.paymentStatus = PAYMENT_STATUS.REFUNDED;
+  order.refundAmount = effectiveRefundAmount;
+  order.refundDate = new Date();
+
+  if (notes) {
+    order.notes = (order.notes || '') + (order.notes ? '\n' : '') + `Refund remark: ${String(notes).trim()}`;
+  }
+
+  order.returnRequest = {
+    ...(order.returnRequest?.toObject ? order.returnRequest.toObject() : order.returnRequest || {}),
+    isRequested: true,
+    status: 'refunded',
+    refundAmount: effectiveRefundAmount,
+    refundDate: new Date(),
+    sellerResponse: {
+      decision: 'approved',
+      comment: notes ? String(notes).trim() : 'Refund processed by seller.',
+      respondedAt: new Date()
+    }
+  };
+
+  if (restockItems !== false) {
+    for (const item of order.items) {
+      if (item.productId) {
+        await Product.findByIdAndUpdate(
+          item.productId,
+          { $inc: { stock: item.quantity } }
+        );
+      }
+    }
+  }
+
+  const Payment = require('../models/Payment.model');
+  await Payment.findOneAndUpdate(
+    { orderId: order._id },
+    { status: 'refunded', refundedAt: new Date() }
+  );
+
+  await order.save();
+  await order.populate('userId', 'name email phone avatar');
+  await order.populate('items.productId', 'name images price');
+
+  res.json({
+    success: true,
+    data: order,
+    message: `Refund of ৳${effectiveRefundAmount} processed successfully`
   });
 });
 
@@ -972,6 +1216,8 @@ module.exports = {
   deleteProduct,
   getSellerOrders,
   updateOrderStatus,
+  handleReturnDecision,
+  issueOrderRefund,
   getSellerProfile,
   updateSellerProfile,
   getSellerEarnings,

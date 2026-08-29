@@ -40,6 +40,7 @@ import AdminSellers from '../pages/admin/Sellers';
 import AdminCategories from '../pages/admin/Categories';
 import AdminOrders from '../pages/admin/Orders';
 import AdminSettings from '../pages/admin/Settings';
+import AdminCMS from '../pages/admin/CMS';
 
 // Guards
 import ProtectedRoute from './ProtectedRoute';
@@ -100,6 +101,8 @@ const AppRoutes = () => {
           <Route path="/admin/sellers" element={<AdminSellers />} />
           <Route path="/admin/categories" element={<AdminCategories />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/cms" element={<AdminCMS />} />
+          <Route path="/admin/banners" element={<AdminCMS />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
         </Route>
       </Route>

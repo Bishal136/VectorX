@@ -11,11 +11,7 @@ import cartReducer from '../features/cart/cartSlice';
 import orderReducer from '../features/order/orderSlice';
 import paymentReducer from '../features/payment/paymentSlice';
 import chatReducer from '../features/chat/chatSlice';
-//
-
-// Import RTK Query API reducers if you use them
-// import { authApi } from '../features/auth/authApi';
-// import { productApi } from '../features/products/productApi';
+import cmsReducer from '../features/cms/cmsSlice';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -28,6 +24,7 @@ const rootReducer = combineReducers({
   order: orderReducer,
   payment: paymentReducer,
   chat: chatReducer,
+  cms: cmsReducer,
 });
 
 export default rootReducer;

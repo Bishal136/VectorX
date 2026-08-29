@@ -27,6 +27,9 @@ const orderStatusTones = {
   Processing: 'info',
   Shipped: 'info',
   Delivered: 'success',
+  Return_Requested: 'warning',
+  Return_Approved: 'info',
+  Return_Rejected: 'danger',
   Cancelled: 'danger',
   Refunded: 'neutral',
 };
@@ -271,6 +274,9 @@ const Orders = () => {
               <option value="Processing">Processing</option>
               <option value="Shipped">Shipped</option>
               <option value="Delivered">Delivered</option>
+              <option value="Return_Requested">Return Requested</option>
+              <option value="Return_Approved">Return Approved</option>
+              <option value="Return_Rejected">Return Declined</option>
               <option value="Cancelled">Cancelled</option>
               <option value="Refunded">Refunded</option>
             </select>
@@ -771,6 +777,39 @@ const Orders = () => {
               </div>
             </div>
 
+            {/* Return Request Lifecycle Breakdown */}
+            {selectedOrder.returnRequest?.isRequested && (
+              <div className="bg-amber-50/80 p-3.5 rounded-xl border border-amber-200 text-xs space-y-1.5 text-slate-800">
+                <div className="flex justify-between items-center font-bold text-amber-900">
+                  <span>Return Request Audit</span>
+                  <span className="uppercase text-[10px] px-2 py-0.5 rounded bg-white border border-amber-300 font-extrabold">
+                    {selectedOrder.returnRequest.status || 'Pending'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-900">Reason: </span>
+                  {selectedOrder.returnRequest.reason}
+                </div>
+                {selectedOrder.returnRequest.customerNotes && (
+                  <div>
+                    <span className="font-semibold text-slate-900">Customer Note: </span>
+                    {selectedOrder.returnRequest.customerNotes}
+                  </div>
+                )}
+                {selectedOrder.returnRequest.sellerResponse && (
+                  <div className="pt-1.5 border-t border-amber-200 text-slate-700">
+                    <span className="font-semibold text-slate-900">Seller Response: </span>
+                    "{selectedOrder.returnRequest.sellerResponse.comment || selectedOrder.returnRequest.sellerResponse.decision}"
+                  </div>
+                )}
+                {selectedOrder.refundAmount > 0 && (
+                  <div className="font-bold text-emerald-800">
+                    Refund Amount: ৳{selectedOrder.refundAmount}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Payment & Audit Notes */}
             {(selectedOrder.notes || selectedOrder.cancellationReason || selectedOrder.trackingNumber) && (
               <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200 text-xs space-y-1">
@@ -845,6 +884,9 @@ const Orders = () => {
                 <option value="Processing">Processing</option>
                 <option value="Shipped">Shipped</option>
                 <option value="Delivered">Delivered</option>
+                <option value="Return_Requested">Return_Requested</option>
+                <option value="Return_Approved">Return_Approved</option>
+                <option value="Return_Rejected">Return_Rejected</option>
                 <option value="Cancelled">Cancelled</option>
                 <option value="Refunded">Refunded</option>
               </select>

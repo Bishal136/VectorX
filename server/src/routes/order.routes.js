@@ -6,6 +6,7 @@ const {
   getUserOrders,
   getOrderById,
   cancelOrder,
+  requestReturn,
   adminGetOrders,
   adminUpdateOrderStatus,
   validateCoupon
@@ -43,9 +44,14 @@ const cancelOrderSchema = Joi.object({
   cancellationReason: Joi.string().optional()
 });
 
+const returnRequestSchema = Joi.object({
+  reason: Joi.string().required().min(3).max(500),
+  customerNotes: Joi.string().optional().allow('')
+});
+
 const adminUpdateStatusSchema = Joi.object({
   status: Joi.string().valid(
-    'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'
+    'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Return_Requested', 'Return_Approved', 'Return_Rejected', 'Refunded'
   ).required()
 });
 
@@ -54,8 +60,8 @@ router.post('/validate-coupon', validateCoupon);
 
 // ===================== Admin Routes =====================
 
-router.get('/admin/all',verifyToken, isAdmin, adminGetOrders);
-router.put('/admin/:id/status',verifyToken, isAdmin, validate(adminUpdateStatusSchema), adminUpdateOrderStatus);
+router.get('/admin/all', verifyToken, isAdmin, adminGetOrders);
+router.put('/admin/:id/status', verifyToken, isAdmin, validate(adminUpdateStatusSchema), adminUpdateOrderStatus);
 
 
 // ===================== User Routes (Authenticated) =====================
@@ -74,6 +80,10 @@ router.get('/:id', getOrderById);
 
 // Cancel order
 router.put('/:id/cancel', validate(cancelOrderSchema), cancelOrder);
+
+// Request return / refund
+router.post('/:id/return', validate(returnRequestSchema), requestReturn);
+router.put('/:id/return', validate(returnRequestSchema), requestReturn);
 
 
 module.exports = router;

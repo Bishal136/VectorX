@@ -490,7 +490,7 @@ const getOrderById = asyncHandler(async (req, res) => {
 // Admin can update order status (e.g., for dispute resolution / lifecycle override)
 const updateOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status, notes } = req.body;
+  const { status, notes, restockItems = true } = req.body;
 
   if (!Object.values(ORDER_STATUS).includes(status)) {
     throw new ApiError(400, 'Invalid order status');
@@ -500,6 +500,39 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   if (!order) throw new ApiError(404, 'Order not found');
 
   order.status = status;
+
+  if (status === ORDER_STATUS.REFUNDED) {
+    order.paymentStatus = PAYMENT_STATUS.REFUNDED;
+    order.refundDate = new Date();
+    order.refundAmount = order.refundAmount || order.totalAmount;
+    if (order.returnRequest) {
+      order.returnRequest.status = 'refunded';
+      order.returnRequest.refundDate = new Date();
+      order.returnRequest.refundAmount = order.refundAmount;
+      if (notes) {
+        order.returnRequest.sellerResponse = {
+          decision: 'approved',
+          comment: `Dispute resolved by Admin: ${notes.trim()}`,
+          respondedAt: new Date(),
+        };
+      }
+    }
+
+    if (restockItems) {
+      for (const item of order.items) {
+        if (item.productId) {
+          await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.quantity } });
+        }
+      }
+    }
+
+    const Payment = require('../models/Payment.model');
+    await Payment.findOneAndUpdate(
+      { orderId: order._id },
+      { status: 'refunded', refundedAt: new Date() }
+    );
+  }
+
   if (notes && notes.trim()) {
     order.notes = (order.notes || '') + (order.notes ? '\n' : '') + `Admin note: ${notes.trim()}`;
   }

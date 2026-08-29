@@ -25,6 +25,12 @@ const MessageCircleIcon = ({ className }) => (
   </svg>
 );
 
+const UserIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+  </svg>
+);
+
 const ChevronDownIcon = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -75,12 +81,15 @@ const Navbar = () => {
   // Buyer-only areas (cart, profile, order history) should only ever show for
   // plain buyers — not sellers or admins, who have their own dashboards instead.
   const isBuyer = !user?.role || user.role === 'user';
+  const { homepageData } = useSelector((state) => state.cms || {});
+  const announcement = homepageData?.announcement;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [openMobileSection, setOpenMobileSection] = useState(null);
+  const [announcementDismissed, setAnnouncementDismissed] = useState(false);
 
   const accountRef = useRef(null);
 
@@ -116,6 +125,41 @@ const Navbar = () => {
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-2xs">
+      {/* Dynamic CMS Announcement Bar */}
+      {announcement?.enabled && announcement?.text && !announcementDismissed && (
+        <div
+          style={{
+            backgroundColor: announcement.bgColor || '#124B38',
+            color: announcement.textColor || '#ffffff',
+          }}
+          className="text-xs py-1.5 px-4 transition-all"
+        >
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 truncate mx-auto">
+              {announcement.badge && (
+                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black tracking-wider uppercase shrink-0">
+                  {announcement.badge}
+                </span>
+              )}
+              <span className="font-semibold text-xs truncate">{announcement.text}</span>
+              {announcement.link && (
+                <Link to={announcement.link} className="underline font-bold text-[11px] ml-1 shrink-0 hover:opacity-90">
+                  Shop Now →
+                </Link>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setAnnouncementDismissed(true)}
+              className="text-white/70 hover:text-white text-xs p-0.5 shrink-0"
+              aria-label="Dismiss banner"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top row */}
         <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
@@ -154,14 +198,51 @@ const Navbar = () => {
             </form>
           </div>
 
-          {/* Right: Actions */}
-          <div className="flex items-center gap-3 sm:gap-6">
-            {/* Account dropdown */}
+          {/* Right: Actions (Order: Cart -> Message -> Profile) */}
+          <div className="flex items-center gap-3 sm:gap-5">
+            {/* 1. Cart icon — buyers only */}
+            {isAuthenticated && isBuyer && (
+              <Link
+                to="/cart"
+                className="relative text-gray-700 hover:text-green-700 transition-colors p-1"
+                aria-label="Cart"
+                title="Shopping Cart"
+              >
+                <ShoppingBagIcon className="w-6 h-6" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none shadow-xs">
+                    {cartCount > 99 ? '99+' : cartCount}
+                  </span>
+                )}
+              </Link>
+            )}
+
+            {/* 2. Messages icon — buyers only */}
+            {isAuthenticated && isBuyer && (
+              <Link
+                to="/messages"
+                className="relative text-gray-700 hover:text-green-700 transition-colors p-1"
+                aria-label="Messages"
+                title="My Messages & Chats"
+              >
+                <MessageCircleIcon className="w-6 h-6" />
+                {chatUnread > 0 && (
+                  <span className="absolute -top-1 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold leading-none shadow-xs">
+                    {chatUnread > 99 ? '99+' : chatUnread}
+                  </span>
+                )}
+              </Link>
+            )}
+
+            <span className="hidden sm:block w-px h-5 bg-gray-300" aria-hidden="true" />
+
+            {/* 3. User Profile / Account dropdown — Last */}
             <div className="relative" ref={accountRef}>
               <button
                 onClick={() => setIsAccountOpen(!isAccountOpen)}
-                className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-green-700 transition-colors focus:outline-none cursor-pointer"
+                className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-green-700 transition-colors focus:outline-none cursor-pointer"
               >
+                <UserIcon className="w-4 h-4 text-gray-600" />
                 <span className="hidden sm:inline">
                   {isAuthenticated ? user?.name || 'Your Account' : 'Your Account'}
                 </span>
@@ -230,41 +311,6 @@ const Navbar = () => {
                 </div>
               )}
             </div>
-
-            <span className="hidden sm:block w-px h-5 bg-gray-300" aria-hidden="true" />
-
-            {/* Messages icon — buyers only */}
-            {isAuthenticated && isBuyer && (
-              <Link
-                to="/messages"
-                className="relative text-gray-700 hover:text-green-700 transition-colors"
-                aria-label="Messages"
-                title="My Messages"
-              >
-                <MessageCircleIcon className="w-6 h-6" />
-                {chatUnread > 0 && (
-                  <span className="absolute -top-2 -right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold leading-none">
-                    {chatUnread > 99 ? '99+' : chatUnread}
-                  </span>
-                )}
-              </Link>
-            )}
-
-            {/* Cart icon — buyers only */}
-            {isAuthenticated && isBuyer && (
-              <Link
-                to="/cart"
-                className="relative text-gray-700 hover:text-green-700 transition-colors"
-                aria-label="Cart"
-              >
-                <ShoppingBagIcon className="w-6 h-6" />
-                {cartCount > 0 && (
-                  <span className="absolute -top-2 -right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
-                    {cartCount > 99 ? '99+' : cartCount}
-                  </span>
-                )}
-              </Link>
-            )}
           </div>
         </div>
 

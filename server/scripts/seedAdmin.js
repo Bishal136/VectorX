@@ -22,7 +22,7 @@ const seedAdmin = async () => {
     // Create admin user
     const admin = await User.create({
       name: 'System Administrator',
-      email: 'admin@vectorx.com',
+      email: 'bishalbiswas2026@gmail.com',
       password: '12345678',
       role: 'admin',
       isVerified: true

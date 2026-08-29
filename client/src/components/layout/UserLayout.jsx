@@ -20,16 +20,20 @@ const UserLayout = () => {
 
   useEffect(() => {
     const fetchLocation = async () => {
-      const coords = await getLocation();
-      if (coords) {
-        dispatch(
-          setLocation({
-            lat: coords.latitude,
-            lng: coords.longitude,
-            source: 'geo',
-            pincode: null,
-          })
-        );
+      try {
+        const coords = await getLocation();
+        if (coords) {
+          dispatch(
+            setLocation({
+              lat: coords.latitude || coords.lat,
+              lng: coords.longitude || coords.lng,
+              source: 'geo',
+              pincode: null,
+            })
+          );
+        }
+      } catch {
+        // Handled silently: user denied permission or geolocation is unavailable
       }
     };
     fetchLocation();

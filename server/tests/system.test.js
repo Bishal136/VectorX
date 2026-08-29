@@ -200,9 +200,76 @@ async function startSuite() {
     assert.strictEqual(typeof orderCtrl.getUserOrders, 'function');
     assert.strictEqual(typeof orderCtrl.getOrderById, 'function');
     assert.strictEqual(typeof orderCtrl.cancelOrder, 'function');
+    assert.strictEqual(typeof orderCtrl.requestReturn, 'function', 'requestReturn must be exported');
     assert.strictEqual(typeof orderCtrl.adminGetOrders, 'function');
     assert.strictEqual(typeof orderCtrl.adminUpdateOrderStatus, 'function');
     assert.strictEqual(typeof orderCtrl.validateCoupon, 'function');
+
+    const sellerCtrl = require('../src/controllers/seller.controller');
+    assert.strictEqual(typeof sellerCtrl.handleReturnDecision, 'function', 'handleReturnDecision must be exported');
+    assert.strictEqual(typeof sellerCtrl.issueOrderRefund, 'function', 'issueOrderRefund must be exported');
+  });
+
+  // ----------------------------------------------------
+  // 6. Return & Refund Lifecycle Tests
+  // ----------------------------------------------------
+  console.log('\n--- 6. Testing Return and Refund Lifecycle & Methods ---');
+
+  runTest('Order schema defines returnRequest fields and indexes correctly', () => {
+    const { Order, ORDER_STATUS } = require('../src/models/Order.model');
+    assert.strictEqual(ORDER_STATUS.RETURN_REQUESTED, 'Return_Requested');
+    assert.strictEqual(ORDER_STATUS.RETURN_APPROVED, 'Return_Approved');
+    assert.strictEqual(ORDER_STATUS.RETURN_REJECTED, 'Return_Rejected');
+    assert.strictEqual(ORDER_STATUS.REFUNDED, 'Refunded');
+
+    const returnRequestPath = Order.schema.paths['returnRequest.status'];
+    assert(returnRequestPath, 'returnRequest.status path must exist in schema');
+    const reasonPath = Order.schema.paths['returnRequest.reason'];
+    assert(reasonPath, 'returnRequest.reason path must exist in schema');
+  });
+
+  runTest('Order helper methods canRequestReturn() and canSellerDecideReturn() work properly', () => {
+    const { Order, ORDER_STATUS } = require('../src/models/Order.model');
+
+    // Case 1: Newly delivered order -> can request return
+    const deliveredOrder = new Order({
+      userId: '66a1b2c3d4e5f67890123456',
+      sellerId: '66a1b2c3d4e5f67890123457',
+      items: [{ name: 'Test Product', price: 500, quantity: 1 }],
+      totalAmount: 500,
+      paymentMethod: 'COD',
+      status: ORDER_STATUS.DELIVERED
+    });
+    assert.strictEqual(deliveredOrder.canRequestReturn(), true, 'Delivered order should allow return request');
+    assert.strictEqual(deliveredOrder.canSellerDecideReturn(), false, 'Delivered order without pending return should not allow seller decision');
+
+    // Case 2: Pending order -> cannot request return
+    const pendingOrder = new Order({
+      userId: '66a1b2c3d4e5f67890123456',
+      sellerId: '66a1b2c3d4e5f67890123457',
+      items: [{ name: 'Test Product', price: 500, quantity: 1 }],
+      totalAmount: 500,
+      paymentMethod: 'COD',
+      status: ORDER_STATUS.PENDING
+    });
+    assert.strictEqual(pendingOrder.canRequestReturn(), false, 'Pending order should not allow return request');
+
+    // Case 3: Return requested order -> can seller decide
+    const returnRequestedOrder = new Order({
+      userId: '66a1b2c3d4e5f67890123456',
+      sellerId: '66a1b2c3d4e5f67890123457',
+      items: [{ name: 'Test Product', price: 500, quantity: 1 }],
+      totalAmount: 500,
+      paymentMethod: 'COD',
+      status: ORDER_STATUS.RETURN_REQUESTED,
+      returnRequest: {
+        isRequested: true,
+        reason: 'Defective item',
+        status: 'pending'
+      }
+    });
+    assert.strictEqual(returnRequestedOrder.canRequestReturn(), false, 'Already requested return order should not allow duplicate return request');
+    assert.strictEqual(returnRequestedOrder.canSellerDecideReturn(), true, 'Seller can decide on pending return request');
   });
 
   runTest('Express Application compiles all routes cleanly', () => {

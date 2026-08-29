@@ -29,10 +29,10 @@ const useGeolocation = () => {
       setLoading(false);
       setError('Geolocation is not supported by your browser.');
       setManualMode(true);
-      return Promise.reject(new Error('Geolocation is not supported by your browser.'));
+      return Promise.resolve(null);
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
@@ -50,9 +50,10 @@ const useGeolocation = () => {
         },
         (err) => {
           setLoading(false);
-          setError(err.message || 'Unable to retrieve location.');
+          setError(err?.message || 'Unable to retrieve location.');
           setManualMode(true);
-          reject(err);
+          // Resolve with null instead of rejecting to avoid unhandled promise rejection errors in UI/effects
+          resolve(null);
         },
         {
           enableHighAccuracy: true,

@@ -4,6 +4,8 @@ import { toast } from 'react-toastify';
 import {
   fetchSellerOrders,
   updateOrderStatus,
+  respondToReturnRequest,
+  issueOrderRefund,
   clearSellerError,
 } from '../../features/seller/sellerSlice';
 import Badge from '../../components/common/Badge';
@@ -29,6 +31,8 @@ import {
   ShieldCheck,
   Send,
   FileText,
+  HelpCircle,
+  ArrowRight,
 } from 'lucide-react';
 
 const formatCurrency = (amount) => {
@@ -78,6 +82,27 @@ const ORDER_STATUS_CONFIG = {
     color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
     description: 'Order received by customer. For COD, payment is recorded as collected.',
   },
+  Return_Requested: {
+    label: 'Return Requested',
+    tone: 'warning',
+    icon: RotateCcw,
+    color: 'text-amber-800 bg-amber-100 border-amber-300',
+    description: 'Customer submitted a return request. Awaiting your approval or decision.',
+  },
+  Return_Approved: {
+    label: 'Return Approved',
+    tone: 'info',
+    icon: CheckCircle,
+    color: 'text-blue-800 bg-blue-100 border-blue-300',
+    description: 'Return request approved. Waiting for return shipment or refund issuance.',
+  },
+  Return_Rejected: {
+    label: 'Return Declined',
+    tone: 'danger',
+    icon: XCircle,
+    color: 'text-rose-800 bg-rose-100 border-rose-300',
+    description: 'Return request was declined by seller.',
+  },
   Cancelled: {
     label: 'Cancelled',
     tone: 'danger',
@@ -99,6 +124,9 @@ const ALL_STATUS_OPTIONS = [
   'Processing',
   'Shipped',
   'Delivered',
+  'Return_Requested',
+  'Return_Approved',
+  'Return_Rejected',
   'Cancelled',
   'Refunded',
 ];
@@ -109,6 +137,7 @@ const statusTabs = [
   { id: 'Processing', label: 'Processing' },
   { id: 'Shipped', label: 'Shipped' },
   { id: 'Delivered', label: 'Delivered' },
+  { id: 'returns', label: 'Return Requests' },
   { id: 'Cancelled', label: 'Cancelled' },
   { id: 'Refunded', label: 'Refunded' },
 ];
@@ -133,6 +162,16 @@ const Orders = () => {
   const [statusNotes, setStatusNotes] = useState('');
   const [cancellationReason, setCancellationReason] = useState('');
   const [statusUpdateError, setStatusUpdateError] = useState('');
+
+  // Return decision modal state
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [orderForReturnDecision, setOrderForReturnDecision] = useState(null);
+  const [returnDecision, setReturnDecision] = useState('approved');
+  const [returnActionType, setReturnActionType] = useState('approve_and_refund'); // 'approve_and_refund' | 'approve_return'
+  const [decisionComment, setDecisionComment] = useState('');
+  const [refundAmountInput, setRefundAmountInput] = useState('');
+  const [restockInventory, setRestockInventory] = useState(true);
+  const [submittingReturnDecision, setSubmittingReturnDecision] = useState(false);
 
   // Quick inline update loading per order
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
@@ -204,6 +243,86 @@ const Orders = () => {
       setSelectedOrderForStatus(null);
     } else {
       setStatusUpdateError(res.payload || 'Failed to update order status');
+    }
+  };
+
+  const handleOpenReturnModal = (order) => {
+    setOrderForReturnDecision(order);
+    setReturnDecision('approved');
+    setReturnActionType('approve_and_refund');
+    setDecisionComment('');
+    setRefundAmountInput(order.returnRequest?.refundAmount || order.totalAmount || '');
+    setRestockInventory(true);
+    setReturnModalOpen(true);
+  };
+
+  const handleSubmitReturnDecision = async (e) => {
+    e.preventDefault();
+    if (!orderForReturnDecision) return;
+
+    setSubmittingReturnDecision(true);
+    try {
+      await dispatch(
+        respondToReturnRequest({
+          orderId: orderForReturnDecision._id,
+          decision: returnDecision,
+          comment: decisionComment.trim() || undefined,
+          refundAmount: refundAmountInput ? Number(refundAmountInput) : undefined,
+          restockItems: restockInventory,
+          action: returnDecision === 'approved' ? returnActionType : 'reject',
+        })
+      ).unwrap();
+
+      toast.success(
+        returnDecision === 'approved'
+          ? (returnActionType === 'approve_and_refund'
+              ? `Return approved and refund of ৳${refundAmountInput || orderForReturnDecision.totalAmount} issued!`
+              : 'Return approved. Customer requested to return items.')
+          : 'Return request declined.'
+      );
+      setReturnModalOpen(false);
+      setOrderForReturnDecision(null);
+
+      // Refresh list
+      dispatch(
+        fetchSellerOrders({
+          page: currentPage,
+          limit: 10,
+          status: activeTab === 'all' ? undefined : activeTab,
+        })
+      );
+    } catch (err) {
+      toast.error(typeof err === 'string' ? err : err?.message || 'Failed to submit return decision');
+    } finally {
+      setSubmittingReturnDecision(false);
+    }
+  };
+
+  const handleQuickIssueRefund = async (order) => {
+    setUpdatingOrderId(order._id);
+    try {
+      await dispatch(
+        issueOrderRefund({
+          orderId: order._id,
+          refundAmount: order.refundAmount || order.totalAmount,
+          notes: 'Refund processed by seller',
+          restockItems: true,
+        })
+      ).unwrap();
+
+      toast.success(`Refund of ৳${order.totalAmount} issued for Order #${order._id.slice(-6).toUpperCase()}`);
+
+      dispatch(
+        fetchSellerOrders({
+          page: currentPage,
+          limit: 10,
+          status: activeTab === 'all' ? undefined : activeTab,
+        })
+      );
+    } catch (err) {
+      toast.error(typeof err === 'string' ? err : err?.message || 'Failed to issue refund');
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -422,8 +541,73 @@ const Orders = () => {
                     </div>
                   </div>
 
+                  {/* Return Request Notification Banner (If Pending Approval) */}
+                  {(order.status === 'Return_Requested' || order.returnRequest?.status === 'pending') && (
+                    <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 space-y-2.5 text-xs shadow-2xs">
+                      <div className="flex items-center justify-between font-bold text-amber-900">
+                        <span className="flex items-center gap-1.5">
+                          <RotateCcw className="w-4 h-4 text-amber-700 animate-spin" />
+                          Return & Refund Requested by Customer
+                        </span>
+                        <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md uppercase font-extrabold">
+                          Needs Seller Decision
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 bg-white/70 p-3 rounded-xl border border-amber-100">
+                        <div>
+                          <span className="font-bold text-slate-900 block">Return Reason:</span>
+                          <span className="text-slate-800">{order.returnRequest?.reason || 'Not specified'}</span>
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-900 block">Requested Date:</span>
+                          <span className="text-slate-600">{formatDate(order.returnRequest?.requestedAt || order.updatedAt)}</span>
+                        </div>
+                        {order.returnRequest?.customerNotes && (
+                          <div className="col-span-full pt-1 border-t border-slate-100">
+                            <span className="font-bold text-slate-900 block">Customer Notes:</span>
+                            <span className="italic text-slate-700">"{order.returnRequest.customerNotes}"</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 pt-1 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReturnModal(order)}
+                          className="px-4 py-2 rounded-xl bg-[#124B38] hover:bg-[#0d3628] text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <ShieldCheck className="w-4 h-4" /> Review & Decide Request
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Return Approved Banner */}
+                  {order.status === 'Return_Approved' && (
+                    <div className="bg-blue-50/90 border border-blue-200/90 rounded-2xl p-4 space-y-2 text-xs shadow-2xs">
+                      <div className="flex items-center justify-between font-bold text-blue-900">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle className="w-4 h-4 text-blue-700" />
+                          Return Approved — Awaiting Physical Items / Refund
+                        </span>
+                        <button
+                          type="button"
+                          disabled={updatingOrderId === order._id}
+                          onClick={() => handleQuickIssueRefund(order)}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Complete Refund ({formatCurrency(order.refundAmount || order.totalAmount)})
+                        </button>
+                      </div>
+                      {order.returnRequest?.sellerResponse?.comment && (
+                        <p className="text-slate-600 bg-white/70 p-2 rounded-xl border border-blue-100">
+                          <strong>Seller instruction:</strong> {order.returnRequest.sellerResponse.comment}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Visual Stepper Lifecycle (For Standard Active Stages) */}
-                  {!['Cancelled', 'Refunded'].includes(order.status) && (
+                  {!['Cancelled', 'Refunded', 'Return_Requested', 'Return_Approved', 'Return_Rejected'].includes(order.status) && (
                     <div className="pt-2">
                       <div className="grid grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-100 text-center text-[11px]">
                         {STAGE_ORDER.map((stage, idx) => {
@@ -461,6 +645,27 @@ const Orders = () => {
                   <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                     {/* Quick 1-Click Shortcut Buttons */}
                     <div className="flex flex-wrap items-center gap-2">
+                      {order.status === 'Return_Requested' && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReturnModal(order)}
+                          className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Handle Return Request
+                        </button>
+                      )}
+
+                      {order.status === 'Return_Approved' && (
+                        <button
+                          type="button"
+                          disabled={updatingOrderId === order._id}
+                          onClick={() => handleQuickIssueRefund(order)}
+                          className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Issue Refund
+                        </button>
+                      )}
+
                       {order.status === 'Pending' && (
                         <>
                           <button
@@ -618,6 +823,55 @@ const Orders = () => {
                           )}
                         </div>
                       </div>
+
+                      {/* Return & Refund Request Card (If exists) */}
+                      {order.returnRequest?.isRequested && (
+                        <div className="col-span-full bg-amber-50/70 p-4 rounded-2xl border border-amber-200 space-y-2 text-xs text-slate-800">
+                          <div className="flex items-center justify-between font-bold text-amber-900">
+                            <span className="flex items-center gap-1.5">
+                              <RotateCcw className="w-4 h-4 text-amber-700" /> Return & Refund Request Lifecycle
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-lg bg-white border border-amber-300 uppercase text-[10px] font-extrabold">
+                              Status: {order.returnRequest.status}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                            <div>
+                              <span className="text-slate-500 block text-[11px]">Return Reason</span>
+                              <p className="font-semibold text-slate-900">{order.returnRequest.reason}</p>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 block text-[11px]">Requested At</span>
+                              <p className="font-semibold text-slate-900">
+                                {order.returnRequest.requestedAt ? formatDate(order.returnRequest.requestedAt) : 'N/A'}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 block text-[11px]">Refund Amount</span>
+                              <p className="font-black text-emerald-800">
+                                {formatCurrency(order.refundAmount || order.returnRequest.refundAmount || order.totalAmount)}
+                              </p>
+                            </div>
+                          </div>
+                          {order.returnRequest.customerNotes && (
+                            <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                              <span className="font-bold text-slate-900 block text-[11px]">Customer Explanation:</span>
+                              <p className="text-slate-700 italic">"{order.returnRequest.customerNotes}"</p>
+                            </div>
+                          )}
+                          {order.returnRequest.sellerResponse && (
+                            <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                              <span className="font-bold text-slate-900 block text-[11px]">Seller Decision Remark:</span>
+                              <p className="text-slate-700">"{order.returnRequest.sellerResponse.comment || order.returnRequest.sellerResponse.decision}"</p>
+                              {order.returnRequest.sellerResponse.respondedAt && (
+                                <span className="text-[10px] text-slate-400 block mt-0.5">
+                                  Responded on {formatDate(order.returnRequest.sellerResponse.respondedAt)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Ordered Items Table */}
@@ -810,6 +1064,195 @@ const Orders = () => {
               className="rounded-xl"
             >
               Confirm Status Change
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ──────────────── Return / Refund Decision Modal (Seller Side) ──────────────── */}
+      <Modal
+        open={returnModalOpen}
+        onClose={() => setReturnModalOpen(false)}
+        title={`Return & Refund Decision: Order #${orderForReturnDecision?._id?.slice(-8).toUpperCase()}`}
+      >
+        <form onSubmit={handleSubmitReturnDecision} className="space-y-4 py-2 text-xs">
+          {/* Customer Request Recap Card */}
+          <div className="bg-amber-50/80 p-3.5 rounded-2xl border border-amber-200 space-y-1.5 text-amber-900">
+            <div className="flex items-center justify-between font-bold">
+              <span className="flex items-center gap-1">
+                <RotateCcw className="w-3.5 h-3.5 text-amber-700" /> Buyer Request Details
+              </span>
+              <span className="font-black text-slate-900">
+                Total: {formatCurrency(orderForReturnDecision?.totalAmount)}
+              </span>
+            </div>
+            <p className="text-slate-800">
+              <strong>Reason: </strong>
+              {orderForReturnDecision?.returnRequest?.reason || 'Customer requested return'}
+            </p>
+            {orderForReturnDecision?.returnRequest?.customerNotes && (
+              <p className="text-slate-600 italic bg-white/70 p-2 rounded-xl border border-amber-100">
+                "{orderForReturnDecision.returnRequest.customerNotes}"
+              </p>
+            )}
+          </div>
+
+          {/* Decision Selector: Approve vs Reject */}
+          <div>
+            <label className="block font-bold text-slate-800 mb-1.5">
+              Select Your Decision
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setReturnDecision('approved')}
+                className={`p-3 rounded-2xl border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+                  returnDecision === 'approved'
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-300'
+                    : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                }`}
+              >
+                <CheckCircle className="w-4 h-4 text-emerald-600" /> Approve Return
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setReturnDecision('rejected')}
+                className={`p-3 rounded-2xl border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+                  returnDecision === 'rejected'
+                    ? 'border-rose-600 bg-rose-50 text-rose-900 ring-2 ring-rose-300'
+                    : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                }`}
+              >
+                <XCircle className="w-4 h-4 text-rose-600" /> Decline Return
+              </button>
+            </div>
+          </div>
+
+          {/* If Approved: Choose Action Type */}
+          {returnDecision === 'approved' && (
+            <div className="space-y-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5">
+                  Approval Action Type
+                </label>
+                <div className="space-y-1.5">
+                  <label
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition ${
+                      returnActionType === 'approve_and_refund'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
+                        : 'border-slate-200 bg-white text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="returnActionType"
+                      checked={returnActionType === 'approve_and_refund'}
+                      onChange={() => setReturnActionType('approve_and_refund')}
+                      className="text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div>
+                      <span>Approve & Issue Refund Immediately</span>
+                      <span className="text-[11px] text-slate-500 font-normal block">
+                        Order status changes to <strong>Refunded</strong> and items can be restocked into inventory.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition ${
+                      returnActionType === 'approve_return'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
+                        : 'border-slate-200 bg-white text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="returnActionType"
+                      checked={returnActionType === 'approve_return'}
+                      onChange={() => setReturnActionType('approve_return')}
+                      className="text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div>
+                      <span>Approve Return (Awaiting Physical Parcel)</span>
+                      <span className="text-[11px] text-slate-500 font-normal block">
+                        Customer will ship items back; you can issue refund after inspecting the package.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Refund Amount Input */}
+              {returnActionType === 'approve_and_refund' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Refund Amount (৳)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={refundAmountInput}
+                      onChange={(e) => setRefundAmountInput(e.target.value)}
+                      placeholder={orderForReturnDecision?.totalAmount?.toString()}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 font-bold"
+                    />
+                  </div>
+
+                  <div className="flex items-center pt-5">
+                    <label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={restockInventory}
+                        onChange={(e) => setRestockInventory(e.target.checked)}
+                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>Restock ordered items into product stock</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Seller Response Note / Comment */}
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">
+              Note to Customer {returnDecision === 'rejected' ? '(Reason for Decline)' : '(Optional Remarks / Instructions)'}
+            </label>
+            <textarea
+              rows={2}
+              value={decisionComment}
+              onChange={(e) => setDecisionComment(e.target.value)}
+              placeholder={
+                returnDecision === 'approved'
+                  ? 'e.g. Return approved. Please send package to our registered shop address.'
+                  : 'e.g. Return declined as the warranty period has expired / product is not eligible for return.'
+              }
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setReturnModalOpen(false)}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant={returnDecision === 'approved' ? 'primary' : 'danger'}
+              size="sm"
+              loading={submittingReturnDecision}
+              className="rounded-xl"
+            >
+              {returnDecision === 'approved' ? 'Confirm Approval' : 'Confirm Decline'}
             </Button>
           </div>
         </form>

@@ -64,6 +64,22 @@ export const cancelOrder = createAsyncThunk(
   }
 );
 
+// Request a return / refund on a delivered order
+export const requestOrderReturn = createAsyncThunk(
+  'order/requestReturn',
+  async ({ orderId, reason, customerNotes }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post(`/orders/${orderId}/return`, {
+        reason,
+        customerNotes
+      });
+      return response.data.data; // updated order with returnRequest
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to submit return request');
+    }
+  }
+);
+
 // ----- Initial State -----
 const initialState = {
   orders: [],               // list of user orders (from fetchUserOrders)
@@ -172,6 +188,28 @@ const orderSlice = createSlice({
         state.error = null;
       })
       .addCase(cancelOrder.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload;
+      })
+
+      // ----- Request Order Return -----
+      .addCase(requestOrderReturn.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(requestOrderReturn.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        const updatedOrder = action.payload;
+        const index = state.orders.findIndex((o) => o._id === updatedOrder._id);
+        if (index !== -1) {
+          state.orders[index] = updatedOrder;
+        }
+        if (state.currentOrder && state.currentOrder._id === updatedOrder._id) {
+          state.currentOrder = updatedOrder;
+        }
+        state.error = null;
+      })
+      .addCase(requestOrderReturn.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload;
       });

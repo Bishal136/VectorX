@@ -8,6 +8,9 @@ const ORDER_STATUS = {
   SHIPPED: 'Shipped',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
+  RETURN_REQUESTED: 'Return_Requested',
+  RETURN_APPROVED: 'Return_Approved',
+  RETURN_REJECTED: 'Return_Rejected',
   REFUNDED: 'Refunded'
 };
 
@@ -216,6 +219,54 @@ const orderSchema = new mongoose.Schema({
     type: Date
   },
 
+  // Return & Refund Handling (Buyer request & Seller approval)
+  returnRequest: {
+    isRequested: {
+      type: Boolean,
+      default: false
+    },
+    reason: {
+      type: String
+    },
+    customerNotes: {
+      type: String,
+      trim: true
+    },
+    requestedAt: {
+      type: Date
+    },
+    status: {
+      type: String,
+      enum: ['none', 'pending', 'approved', 'rejected', 'refunded'],
+      default: 'none'
+    },
+    sellerResponse: {
+      decision: {
+        type: String,
+        enum: ['approved', 'rejected']
+      },
+      comment: {
+        type: String,
+        trim: true
+      },
+      respondedAt: {
+        type: Date
+      }
+    },
+    refundAmount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    refundReference: {
+      type: String,
+      sparse: true
+    },
+    refundDate: {
+      type: Date
+    }
+  },
+
   // Order notes (for delivery instructions)
   notes: {
     type: String,
@@ -252,6 +303,7 @@ orderSchema.index({ checkoutSessionId: 1 }, { sparse: true });
 orderSchema.index({ status: 1, createdAt: 1 });
 orderSchema.index({ paymentStatus: 1 });
 orderSchema.index({ 'shippingAddress.coordinates': '2dsphere' });
+orderSchema.index({ 'returnRequest.status': 1 });
 
 // Compound index for seller dashboard queries
 orderSchema.index({ sellerId: 1, status: 1, createdAt: -1 });
@@ -261,14 +313,31 @@ orderSchema.methods.canCancel = function () {
   return [ORDER_STATUS.PENDING, ORDER_STATUS.PROCESSING].includes(this.status);
 };
 
+// Method to check if buyer can request a return / refund
+orderSchema.methods.canRequestReturn = function () {
+  return this.status === ORDER_STATUS.DELIVERED && (!this.returnRequest || !this.returnRequest.isRequested || this.returnRequest.status === 'none');
+};
+
+// Method to check if seller can decide on return request
+orderSchema.methods.canSellerDecideReturn = function () {
+  return this.status === ORDER_STATUS.RETURN_REQUESTED || (this.returnRequest && this.returnRequest.status === 'pending');
+};
+
 // Method to check if order can be updated (status)
 orderSchema.methods.canUpdateStatus = function () {
-  return [ORDER_STATUS.PENDING, ORDER_STATUS.PROCESSING, ORDER_STATUS.SHIPPED].includes(this.status);
+  return [
+    ORDER_STATUS.PENDING,
+    ORDER_STATUS.PROCESSING,
+    ORDER_STATUS.SHIPPED,
+    ORDER_STATUS.DELIVERED,
+    ORDER_STATUS.RETURN_REQUESTED,
+    ORDER_STATUS.RETURN_APPROVED
+  ].includes(this.status);
 };
 
 // Method to check if order is completed
 orderSchema.methods.isCompleted = function () {
-  return [ORDER_STATUS.DELIVERED, ORDER_STATUS.REFUNDED].includes(this.status);
+  return [ORDER_STATUS.DELIVERED, ORDER_STATUS.REFUNDED, ORDER_STATUS.RETURN_REJECTED].includes(this.status);
 };
 
 // Method to check if order is active (not cancelled/refunded)

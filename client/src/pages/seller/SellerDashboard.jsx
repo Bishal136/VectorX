@@ -246,6 +246,32 @@ const SellerDashboard = () => {
         </div>
       )}
 
+      {/* Pending Return Requests Notification Banner */}
+      {dashboardStats?.pendingReturnRequests > 0 && (
+        <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-4 sm:p-5 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg font-bold shrink-0">
+                🔄
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-amber-900">
+                  {dashboardStats.pendingReturnRequests} Pending Return & Refund Request{dashboardStats.pendingReturnRequests > 1 ? 's' : ''}
+                </h3>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Customers have requested returns on delivered orders. Review customer notes and approve or decline them.
+                </p>
+              </div>
+            </div>
+            <Link to="/seller/orders" className="shrink-0">
+              <Button size="sm" variant="primary" className="bg-[#124B38] hover:bg-[#0d3628] rounded-xl text-xs font-bold">
+                Review Returns →
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Low Stock Alert Section */}
       {dashboardStats?.lowStockProducts && dashboardStats.lowStockProducts.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 sm:p-5">

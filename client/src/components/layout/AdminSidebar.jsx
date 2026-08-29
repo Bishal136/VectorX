@@ -8,7 +8,7 @@ import {
   ClipboardList,
   Settings,
   X,
-  ShieldAlert,
+  Layers,
 } from 'lucide-react';
 import Logo from '../common/Logo';
 
@@ -19,6 +19,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { label: 'Seller & KYC', path: '/admin/sellers', icon: Store },
     { label: 'Categories', path: '/admin/categories', icon: FolderTree },
     { label: 'Orders Oversight', path: '/admin/orders', icon: ClipboardList },
+    { label: 'Banners & CMS', path: '/admin/cms', icon: Layers },
     { label: 'Platform Settings', path: '/admin/settings', icon: Settings },
   ];
 

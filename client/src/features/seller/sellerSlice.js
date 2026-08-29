@@ -158,6 +158,40 @@ export const updateOrderStatus = createAsyncThunk(
   }
 );
 
+export const respondToReturnRequest = createAsyncThunk(
+  'seller/respondToReturnRequest',
+  async ({ orderId, decision, comment, refundAmount, restockItems, action }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(`/sellers/orders/${orderId}/return-decision`, {
+        decision,
+        comment,
+        refundAmount,
+        restockItems,
+        action
+      });
+      return response.data.data?.order || response.data.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to process return decision');
+    }
+  }
+);
+
+export const issueOrderRefund = createAsyncThunk(
+  'seller/issueOrderRefund',
+  async ({ orderId, refundAmount, notes, restockItems }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(`/sellers/orders/${orderId}/refund`, {
+        refundAmount,
+        notes,
+        restockItems
+      });
+      return response.data.data?.order || response.data.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to process refund');
+    }
+  }
+);
+
 // ----- Reviews & Ratings Management -----
 export const fetchSellerReviews = createAsyncThunk(
   'seller/fetchReviews',
@@ -452,6 +486,44 @@ const sellerSlice = createSlice({
         state.error = null;
       })
       .addCase(updateOrderStatus.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(respondToReturnRequest.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
+      .addCase(respondToReturnRequest.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        const updated = action.payload;
+        if (updated && updated._id) {
+          const index = state.orders.findIndex((o) => o._id === updated._id);
+          if (index !== -1) {
+            state.orders[index] = { ...state.orders[index], ...updated };
+          }
+        }
+        state.error = null;
+      })
+      .addCase(respondToReturnRequest.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(issueOrderRefund.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
+      .addCase(issueOrderRefund.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        const updated = action.payload;
+        if (updated && updated._id) {
+          const index = state.orders.findIndex((o) => o._id === updated._id);
+          if (index !== -1) {
+            state.orders[index] = { ...state.orders[index], ...updated };
+          }
+        }
+        state.error = null;
+      })
+      .addCase(issueOrderRefund.rejected, (state, action) => {
         state.actionLoading = false;
         state.error = action.payload;
       })

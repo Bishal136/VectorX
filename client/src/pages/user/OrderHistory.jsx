@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchUserOrders,
   cancelOrder,
+  requestOrderReturn,
   fetchOrderById,
 } from '../../features/order/orderSlice';
 import { addToCart } from '../../features/cart/cartSlice';
@@ -31,6 +32,7 @@ import {
   ArrowRight,
   Printer,
   RotateCcw,
+  HelpCircle,
 } from 'lucide-react';
 
 const DEFAULT_FALLBACK_IMAGE =
@@ -53,6 +55,7 @@ const STATUS_TABS = [
   { label: 'Processing', value: 'Processing' },
   { label: 'Shipped', value: 'Shipped' },
   { label: 'Delivered', value: 'Delivered' },
+  { label: 'Returns & Refunds', value: 'Return_Requested' },
   { label: 'Cancelled', value: 'Cancelled' },
 ];
 
@@ -62,6 +65,15 @@ const CANCELLATION_REASONS = [
   'Ordered by mistake / duplicate order',
   'Delivery time is too long',
   'Need to change shipping address',
+  'Other reasons',
+];
+
+const RETURN_REASONS = [
+  'Defective / Not working properly',
+  'Damaged product / Broken during delivery',
+  'Wrong item or size received',
+  'Item does not match description / images',
+  'Quality not satisfactory / Missing parts',
   'Other reasons',
 ];
 
@@ -84,6 +96,14 @@ const OrderHistory = () => {
   const [cancelReason, setCancelReason] = useState(CANCELLATION_REASONS[0]);
   const [cancelCustomNotes, setCancelCustomNotes] = useState('');
   const [cancelling, setCancelling] = useState(false);
+
+  // Return request modal state
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [orderToReturn, setOrderToReturn] = useState(null);
+  const [returnReason, setReturnReason] = useState(RETURN_REASONS[0]);
+  const [returnCustomNotes, setReturnCustomNotes] = useState('');
+  const [submittingReturn, setSubmittingReturn] = useState(false);
+
   const [reorderingId, setReorderingId] = useState(null);
   const [payingOrderId, setPayingOrderId] = useState(null);
 
@@ -218,6 +238,43 @@ const OrderHistory = () => {
     }
   };
 
+  // Handle Return Request Submission
+  const handleConfirmReturn = async () => {
+    if (!orderToReturn) return;
+    setSubmittingReturn(true);
+    try {
+      const fullReason = returnReason === 'Other reasons' && returnCustomNotes.trim()
+        ? `Other: ${returnCustomNotes.trim()}`
+        : returnReason;
+
+      await dispatch(
+        requestOrderReturn({
+          orderId: orderToReturn._id || orderToReturn.id,
+          reason: fullReason,
+          customerNotes: returnCustomNotes.trim(),
+        })
+      ).unwrap();
+
+      toast.success('Return request submitted! The seller has been notified for approval.');
+      setReturnModalOpen(false);
+      setOrderToReturn(null);
+      setReturnCustomNotes('');
+
+      // Refresh orders
+      dispatch(
+        fetchUserOrders({
+          status: activeTab === 'all' ? undefined : activeTab,
+          page: currentPage,
+          limit: 10,
+        })
+      );
+    } catch (err) {
+      toast.error(typeof err === 'string' ? err : err?.message || 'Failed to submit return request');
+    } finally {
+      setSubmittingReturn(false);
+    }
+  };
+
   // Status Badge Helper
   const renderStatusBadge = (statusStr) => {
     switch (statusStr) {
@@ -245,6 +302,24 @@ const OrderHistory = () => {
             <CheckCircle2 className="w-3.5 h-3.5" /> Delivered
           </span>
         );
+      case 'Return_Requested':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs">
+            <RotateCcw className="w-3.5 h-3.5 text-amber-700 animate-spin" /> Return Requested (Pending Approval)
+          </span>
+        );
+      case 'Return_Approved':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" /> Return Approved
+          </span>
+        );
+      case 'Return_Rejected':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            <XCircle className="w-3.5 h-3.5 text-rose-600" /> Return Declined
+          </span>
+        );
       case 'Cancelled':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
@@ -253,8 +328,8 @@ const OrderHistory = () => {
         );
       case 'Refunded':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
-            <RotateCcw className="w-3.5 h-3.5" /> Refunded
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+            <RotateCcw className="w-3.5 h-3.5 text-emerald-600" /> Refunded
           </span>
         );
       default:
@@ -584,7 +659,48 @@ const OrderHistory = () => {
                       })}
                     </div>
 
-                    {/* Order Progress Stepper (Only for active non-cancelled orders) */}
+                    {/* Return Request Notification Box (If return requested) */}
+                    {order.returnRequest?.isRequested && (
+                      <div className={`p-3.5 rounded-2xl border text-xs space-y-1 ${
+                        order.returnRequest.status === 'approved' || order.status === 'Return_Approved'
+                          ? 'bg-blue-50/70 border-blue-200 text-blue-900'
+                          : order.returnRequest.status === 'rejected' || order.status === 'Return_Rejected'
+                          ? 'bg-rose-50/70 border-rose-200 text-rose-900'
+                          : order.status === 'Refunded' || order.returnRequest.status === 'refunded'
+                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                          : 'bg-amber-50/70 border-amber-200 text-amber-900'
+                      }`}>
+                        <div className="flex items-center justify-between font-bold">
+                          <span className="flex items-center gap-1.5">
+                            <RotateCcw className="w-4 h-4" />
+                            Return & Refund Details:
+                          </span>
+                          <span className="uppercase text-[10px] tracking-wider px-2 py-0.5 rounded-md font-extrabold bg-white/80 border border-current">
+                            {order.returnRequest.status || 'Pending'}
+                          </span>
+                        </div>
+                        <p className="text-slate-700">
+                          <strong>Reason:</strong> {order.returnRequest.reason}
+                        </p>
+                        {order.returnRequest.customerNotes && (
+                          <p className="text-slate-600">
+                            <strong>Your note:</strong> {order.returnRequest.customerNotes}
+                          </p>
+                        )}
+                        {order.returnRequest.sellerResponse?.comment && (
+                          <div className="mt-1 pt-1.5 border-t border-slate-200/60 text-slate-800">
+                            <strong>Seller response:</strong> {order.returnRequest.sellerResponse.comment}
+                          </div>
+                        )}
+                        {order.refundAmount > 0 && order.status === 'Refunded' && (
+                          <p className="text-emerald-700 font-bold">
+                            Refund amount: ৳{order.refundAmount} (Completed)
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Order Progress Stepper (Only for active standard stages) */}
                     {activeIndex >= 0 && (
                       <div className="pt-3 pb-1 border-t border-slate-100">
                         <div className="grid grid-cols-4 gap-2 relative">
@@ -672,6 +788,22 @@ const OrderHistory = () => {
                           <RefreshCw className={`w-3.5 h-3.5 ${isReordering ? 'animate-spin' : ''}`} />
                           Buy Again
                         </button>
+
+                        {/* Return Request Button (For Delivered Orders Without Active Return) */}
+                        {order.status === 'Delivered' && (!order.returnRequest || !order.returnRequest.isRequested || order.returnRequest.status === 'none') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOrderToReturn(order);
+                              setReturnReason(RETURN_REASONS[0]);
+                              setReturnCustomNotes('');
+                              setReturnModalOpen(true);
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" /> Request Return
+                          </button>
+                        )}
 
                         {isCancellable && (
                           <button
@@ -833,6 +965,56 @@ const OrderHistory = () => {
                 </div>
               )}
 
+              {/* Return & Refund Info (If requested) */}
+              {selectedOrder.returnRequest?.isRequested && (
+                <div className="space-y-1.5">
+                  <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-600" /> Return & Refund Request
+                  </h4>
+                  <div className="bg-amber-50/70 p-3.5 rounded-2xl space-y-1.5 border border-amber-200 text-slate-700">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-amber-900">Status:</span>
+                      <span className="font-extrabold uppercase text-[10px] px-2 py-0.5 rounded bg-white border border-amber-300">
+                        {selectedOrder.returnRequest.status || 'Pending Approval'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-900">Reason: </span>
+                      {selectedOrder.returnRequest.reason}
+                    </div>
+                    {selectedOrder.returnRequest.customerNotes && (
+                      <div>
+                        <span className="font-semibold text-slate-900">Customer Note: </span>
+                        {selectedOrder.returnRequest.customerNotes}
+                      </div>
+                    )}
+                    {selectedOrder.returnRequest.requestedAt && (
+                      <div className="text-[11px] text-slate-500">
+                        Requested on: {new Date(selectedOrder.returnRequest.requestedAt).toLocaleString()}
+                      </div>
+                    )}
+                    {selectedOrder.returnRequest.sellerResponse && (
+                      <div className="pt-2 border-t border-amber-200/80 mt-1">
+                        <span className="font-bold text-slate-900 block">Seller Response:</span>
+                        <p className="text-slate-800 italic mt-0.5">
+                          "{selectedOrder.returnRequest.sellerResponse.comment || selectedOrder.returnRequest.sellerResponse.decision}"
+                        </p>
+                        {selectedOrder.returnRequest.sellerResponse.respondedAt && (
+                          <span className="text-[10px] text-slate-500 block mt-0.5">
+                            Answered: {new Date(selectedOrder.returnRequest.sellerResponse.respondedAt).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {selectedOrder.refundAmount > 0 && selectedOrder.status === 'Refunded' && (
+                      <div className="pt-1.5 font-bold text-emerald-800 text-xs">
+                        Refund of ৳{selectedOrder.refundAmount} issued.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Price Calculation Summary */}
               <div className="space-y-2 border-t border-slate-100 pt-4">
                 <div className="flex justify-between text-slate-500">
@@ -956,6 +1138,102 @@ const OrderHistory = () => {
                 className="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition cursor-pointer shadow-xs disabled:opacity-50"
               >
                 {cancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* REQUEST RETURN / REFUND MODAL                                             */}
+      {/* ========================================================================= */}
+      {returnModalOpen && orderToReturn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5 text-amber-700">
+                <RotateCcw className="w-5 h-5" />
+                <div>
+                  <h3 className="font-black text-base text-slate-900">Request Return & Refund</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Order #ORD-{(orderToReturn._id || '').slice(-8).toUpperCase()}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReturnModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-amber-50 p-3 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <HelpCircle className="w-4 h-4 text-amber-700" /> Seller Approval Policy
+              </p>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                Your return request will be submitted directly to the seller (<strong>{orderToReturn.sellerId?.shopName || 'Shop'}</strong>). Once approved, your refund of <strong>৳{orderToReturn.totalAmount}</strong> will be processed.
+              </p>
+            </div>
+
+            {/* Reason selector */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700">Please select return reason:</label>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {RETURN_REASONS.map((r) => (
+                  <label
+                    key={r}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition ${
+                      returnReason === r
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="returnReason"
+                      checked={returnReason === r}
+                      onChange={() => setReturnReason(r)}
+                      className="text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>{r}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="pt-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Additional Details / Explanation (Optional):
+                </label>
+                <textarea
+                  rows="2"
+                  value={returnCustomNotes}
+                  onChange={(e) => setReturnCustomNotes(e.target.value)}
+                  placeholder="Describe the issue with the item(s) to help the seller process your request faster..."
+                  className="w-full p-2.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-600 bg-slate-50 focus:bg-white transition"
+                />
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setReturnModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={submittingReturn}
+                onClick={handleConfirmReturn}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-[#1B8057] hover:bg-[#156947] text-white transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${submittingReturn ? 'animate-spin' : ''}`} />
+                {submittingReturn ? 'Submitting Request...' : 'Submit Return Request'}
               </button>
             </div>
           </div>

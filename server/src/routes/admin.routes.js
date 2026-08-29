@@ -57,4 +57,24 @@ router.put(
 router.get('/settings', adminController.getSettings);
 router.put('/settings', validate(adminSchemas.updateSettings), adminController.updateSettings);
 
+// Banners & CMS Management
+const bannerController = require('../controllers/banner.controller');
+const { uploadSingle } = require('../middlewares/upload.middleware');
+const {
+  createBannerSchema,
+  updateBannerSchema,
+  reorderBannersSchema,
+  updateCMSSchema
+} = require('../validations/banner.validation');
+
+router.get('/cms', bannerController.getCMSConfig);
+router.put('/cms', validate(updateCMSSchema), bannerController.updateCMSConfig);
+router.get('/banners', bannerController.adminGetBanners);
+router.post('/banners', uploadSingle('image'), validate(createBannerSchema), bannerController.adminCreateBanner);
+router.post('/banners/reorder', validate(reorderBannersSchema), bannerController.adminReorderBanners);
+router.get('/banners/:id', bannerController.adminGetBannerById);
+router.put('/banners/:id', uploadSingle('image'), validate(updateBannerSchema), bannerController.adminUpdateBanner);
+router.delete('/banners/:id', bannerController.adminDeleteBanner);
+router.patch('/banners/:id/toggle', bannerController.adminToggleBannerStatus);
+
 module.exports = router;

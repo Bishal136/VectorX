@@ -10,6 +10,8 @@ const {
   deleteProduct,
   getSellerOrders,
   updateOrderStatus,
+  handleReturnDecision,
+  issueOrderRefund,
   getSellerProfile,
   updateSellerProfile,
   getSellerEarnings,
@@ -116,13 +118,28 @@ const updateProductSchema = Joi.object({
 const updateOrderStatusSchema = Joi.object({
   status: Joi.string()
     .valid(
-      'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded',
-      'pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'
+      'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Return_Requested', 'Return_Approved', 'Return_Rejected', 'Refunded',
+      'pending', 'processing', 'shipped', 'delivered', 'cancelled', 'return_requested', 'return_approved', 'return_rejected', 'refunded'
     )
     .required(),
   notes: Joi.string().optional().allow(''),
   trackingNumber: Joi.string().optional().allow(''),
-  carrier: Joi.string().optional().allow('')
+  carrier: Joi.string().optional().allow(''),
+  cancellationReason: Joi.string().optional().allow('')
+});
+
+const returnDecisionSchema = Joi.object({
+  decision: Joi.string().valid('approved', 'rejected').required(),
+  comment: Joi.string().optional().allow(''),
+  refundAmount: Joi.number().min(0).optional().allow(null, ''),
+  restockItems: Joi.boolean().optional(),
+  action: Joi.string().valid('approve_and_refund', 'approve_return', 'reject').optional()
+});
+
+const issueRefundSchema = Joi.object({
+  refundAmount: Joi.number().min(0).optional().allow(null, ''),
+  notes: Joi.string().optional().allow(''),
+  restockItems: Joi.boolean().optional()
 });
 
 const updateSellerProfileSchema = Joi.object({
@@ -201,6 +218,9 @@ router.delete('/products/:id', deleteProduct);
 // Order management
 router.get('/orders', getSellerOrders);
 router.put('/orders/:id/status', validate(updateOrderStatusSchema), updateOrderStatus);
+router.put('/orders/:id/return-decision', validate(returnDecisionSchema), handleReturnDecision);
+router.post('/orders/:id/return-decision', validate(returnDecisionSchema), handleReturnDecision);
+router.put('/orders/:id/refund', validate(issueRefundSchema), issueOrderRefund);
 
 // Reviews & Ratings management
 router.get('/reviews', getSellerReviews);

@@ -54,6 +54,19 @@ export const orderApi = createApi({
       }),
       invalidatesTags: (result, error, { orderId }) => [{ type: 'Order', id: orderId }],
     }),
+
+    // Request Return
+    requestReturn: builder.mutation({
+      query: ({ orderId, reason, customerNotes }) => ({
+        url: `/orders/${orderId}/return`,
+        method: 'POST',
+        body: { reason, customerNotes },
+      }),
+      invalidatesTags: (result, error, { orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+      ],
+    }),
   }),
 });
 
@@ -62,4 +75,5 @@ export const {
   useGetUserOrdersQuery,
   useGetOrderByIdQuery,
   useCancelOrderMutation,
+  useRequestReturnMutation,
 } = orderApi;

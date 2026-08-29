@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchProducts } from '../../features/products/productSlice';
 import { addToCart } from '../../features/cart/cartSlice';
+import { fetchHomepageCMS, trackBannerClick } from '../../features/cms/cmsSlice';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../services/axiosInstance';
 
@@ -134,9 +135,27 @@ const Home = () => {
   const navigate = useNavigate();
 
   const { items = [], products: stateProducts = [], status } = useSelector((state) => state.products || {});
+  const { homepageData } = useSelector((state) => state.cms || {});
   const [categories, setCategories] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [addingToCartId, setAddingToCartId] = useState(null);
+
+  // Dynamic Hero Slides from CMS with fallback
+  const heroSlides = useMemo(() => {
+    const cmsSlides = homepageData?.banners?.hero_slider;
+    if (Array.isArray(cmsSlides) && cmsSlides.length > 0) {
+      return cmsSlides.map((b) => ({
+        id: b._id,
+        title: b.title,
+        highlight: b.subtitle,
+        bgImage: b.image?.url,
+        link: b.link || '/products',
+        ctaText: b.ctaText || 'Shop Now',
+        badgeText: b.badgeText,
+      }));
+    }
+    return HERO_SLIDES;
+  }, [homepageData]);
 
   // Safely resolve the array of products from Redux state
   const products = useMemo(() => {
@@ -145,9 +164,10 @@ const Home = () => {
     return [];
   }, [items, stateProducts]);
 
-  // Fetch backend products and categories on mount
+  // Fetch backend products, categories, and homepage CMS data on mount
   useEffect(() => {
     dispatch(fetchProducts({ limit: 40 }));
+    dispatch(fetchHomepageCMS());
 
     const fetchCategories = async () => {
       try {
@@ -163,13 +183,21 @@ const Home = () => {
     fetchCategories();
   }, [dispatch]);
 
-  // Auto rotate hero slides
+  // Auto rotate hero slides according to CMS interval
   useEffect(() => {
+    if (!heroSlides || heroSlides.length === 0) return;
+    const interval = homepageData?.heroSettings?.autoPlayInterval || 6000;
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
-    }, 6000);
+      setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+    }, interval);
     return () => clearInterval(timer);
-  }, []);
+  }, [heroSlides, homepageData?.heroSettings?.autoPlayInterval]);
+
+  const handleHeroBannerClick = (slide) => {
+    if (slide?.id && typeof slide.id === 'string' && slide.id.length === 24) {
+      dispatch(trackBannerClick(slide.id));
+    }
+  };
 
   const handleAddToCart = async (e, product) => {
     e.preventDefault();
@@ -280,13 +308,14 @@ const Home = () => {
       {/* 1. HERO BANNER SECTION (FULL-WIDTH ATMOSPHERIC BANNER)                   */}
       {/* ========================================================================= */}
       <section className="relative w-full h-80 sm:h-100 lg:h-120 bg-slate-900 overflow-hidden">
-        {HERO_SLIDES.map((slide, index) => {
+        {heroSlides.map((slide, index) => {
           const isActive = index === currentSlide;
           return (
             <div
-              key={slide.id}
-              className={`absolute inset-0 transition-opacity duration-1000 ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-                }`}
+              key={slide.id || index}
+              className={`absolute inset-0 transition-opacity duration-1000 ${
+                isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+              }`}
             >
               <img
                 src={slide.bgImage}
@@ -296,19 +325,28 @@ const Home = () => {
               <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
 
               <div className="absolute inset-0 max-w-7xl mx-auto px-6 sm:px-12 flex flex-col justify-center text-white space-y-4">
+                {slide.badgeText && (
+                  <span className="w-fit px-3 py-1 rounded-full bg-emerald-500 text-white text-[11px] font-black uppercase tracking-wider shadow-sm">
+                    {slide.badgeText}
+                  </span>
+                )}
+
                 <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight max-w-xl">
                   {slide.title} <br />
-                  <span className="font-serif italic font-normal text-emerald-300">
-                    {slide.highlight}
-                  </span>
+                  {slide.highlight && (
+                    <span className="font-serif italic font-normal text-emerald-300">
+                      {slide.highlight}
+                    </span>
+                  )}
                 </h1>
 
                 <div className="pt-2">
                   <Link
-                    to={slide.link}
+                    to={slide.link || '/products'}
+                    onClick={() => handleHeroBannerClick(slide)}
                     className="inline-block bg-white hover:bg-emerald-50 text-slate-900 hover:text-emerald-900 px-8 py-3 rounded-full font-bold text-xs sm:text-sm tracking-wide shadow-lg transition-all transform hover:-translate-y-0.5"
                   >
-                    Shop Now
+                    {slide.ctaText || 'Shop Now'}
                   </Link>
                 </div>
               </div>
@@ -317,24 +355,28 @@ const Home = () => {
         })}
 
         {/* Carousel Navigation Arrows */}
-        <button
-          type="button"
-          onClick={() =>
-            setCurrentSlide((prev) => (prev === 0 ? HERO_SLIDES.length - 1 : prev - 1))
-          }
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 flex items-center justify-center transition cursor-pointer shadow-md"
-          aria-label="Previous Slide"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length)}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 flex items-center justify-center transition cursor-pointer shadow-md"
-          aria-label="Next Slide"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
+        {heroSlides.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentSlide((prev) => (prev === 0 ? heroSlides.length - 1 : prev - 1))
+              }
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 flex items-center justify-center transition cursor-pointer shadow-md"
+              aria-label="Previous Slide"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentSlide((prev) => (prev + 1) % heroSlides.length)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 flex items-center justify-center transition cursor-pointer shadow-md"
+              aria-label="Next Slide"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </>
+        )}
       </section>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16">

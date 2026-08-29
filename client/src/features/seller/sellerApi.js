@@ -110,10 +110,34 @@ export const sellerApi = createApi({
       },
     }),
     updateOrderStatus: builder.mutation({
-      query: ({ orderId, status }) => ({
+      query: ({ orderId, status, notes, trackingNumber, cancellationReason }) => ({
         url: `/sellers/orders/${orderId}/status`,
         method: 'PUT',
-        body: { status },
+        body: { status, notes, trackingNumber, cancellationReason },
+      }),
+      invalidatesTags: (result, error, { orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Seller',
+      ],
+    }),
+    respondToReturnRequest: builder.mutation({
+      query: ({ orderId, decision, comment, refundAmount, restockItems, action }) => ({
+        url: `/sellers/orders/${orderId}/return-decision`,
+        method: 'PUT',
+        body: { decision, comment, refundAmount, restockItems, action },
+      }),
+      invalidatesTags: (result, error, { orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Seller',
+      ],
+    }),
+    issueOrderRefund: builder.mutation({
+      query: ({ orderId, refundAmount, notes, restockItems }) => ({
+        url: `/sellers/orders/${orderId}/refund`,
+        method: 'PUT',
+        body: { refundAmount, notes, restockItems },
       }),
       invalidatesTags: (result, error, { orderId }) => [
         { type: 'Order', id: orderId },
@@ -136,4 +160,6 @@ export const {
   useDeleteSellerProductMutation,
   useGetSellerOrdersQuery,
   useUpdateOrderStatusMutation,
+  useRespondToReturnRequestMutation,
+  useIssueOrderRefundMutation,
 } = sellerApi;

@@ -364,6 +364,57 @@ const cancelOrder = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Request a return/refund for a delivered order (buyer)
+ * POST /api/orders/:id/return
+ * @body { reason, customerNotes }
+ */
+const requestReturn = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  const { reason, customerNotes } = req.body;
+
+  if (!reason || !String(reason).trim()) {
+    throw new ApiError(400, 'Return reason is required');
+  }
+
+  const order = await Order.findOne({ _id: id, userId });
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+
+  if (!order.canRequestReturn()) {
+    if (order.status !== ORDER_STATUS.DELIVERED) {
+      throw new ApiError(400, `Returns can only be requested for delivered orders (current status: ${order.status})`);
+    }
+    if (order.returnRequest && order.returnRequest.status && order.returnRequest.status !== 'none') {
+      throw new ApiError(400, `A return request has already been submitted for this order (status: ${order.returnRequest.status})`);
+    }
+    throw new ApiError(400, 'This order is not eligible for return');
+  }
+
+  // Update order return request details
+  order.status = ORDER_STATUS.RETURN_REQUESTED;
+  order.returnRequest = {
+    isRequested: true,
+    reason: String(reason).trim(),
+    customerNotes: customerNotes ? String(customerNotes).trim() : '',
+    requestedAt: new Date(),
+    status: 'pending',
+    refundAmount: order.totalAmount
+  };
+
+  await order.save();
+  await order.populate('sellerId', 'shopName shopAddress location');
+  await order.populate('items.productId', 'name images price');
+
+  res.json({
+    success: true,
+    data: order,
+    message: 'Return request submitted successfully. Awaiting seller approval.'
+  });
+});
+
+/**
  * Admin: Get all orders (with filters)
  * GET /api/orders/admin
  * (Admin only)
@@ -425,11 +476,11 @@ const adminGetOrders = asyncHandler(async (req, res) => {
 /**
  * Admin: Update order status (e.g., for dispute resolution)
  * PUT /api/orders/admin/:id/status
- * @body { status }
+ * @body { status, notes }
  */
 const adminUpdateOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, notes } = req.body;
 
   const validStatuses = Object.values(ORDER_STATUS);
   if (!validStatuses.includes(status)) {
@@ -442,6 +493,27 @@ const adminUpdateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   order.status = status;
+
+  if (status === ORDER_STATUS.REFUNDED) {
+    order.paymentStatus = PAYMENT_STATUS.REFUNDED;
+    order.refundDate = new Date();
+    order.refundAmount = order.refundAmount || order.totalAmount;
+    if (order.returnRequest) {
+      order.returnRequest.status = 'refunded';
+      order.returnRequest.refundDate = new Date();
+      order.returnRequest.refundAmount = order.refundAmount;
+    }
+    const Payment = require('../models/Payment.model');
+    await Payment.findOneAndUpdate(
+      { orderId: order._id },
+      { status: 'refunded', refundedAt: new Date() }
+    );
+  }
+
+  if (notes) {
+    order.notes = (order.notes || '') + (order.notes ? '\n' : '') + `Admin note: ${String(notes).trim()}`;
+  }
+
   await order.save();
 
   res.json({
@@ -456,6 +528,7 @@ module.exports = {
   getUserOrders,
   getOrderById,
   cancelOrder,
+  requestReturn,
   adminGetOrders,
   adminUpdateOrderStatus,
   validateCoupon

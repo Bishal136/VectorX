@@ -18,6 +18,7 @@ const adminRouter = require('./routes/admin.routes');
 const orderRoutes = require('./routes/order.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const chatRoutes = require('./routes/chat.routes');
+const bannerRoutes = require('./routes/banner.routes');
 
 
 
@@ -68,6 +69,7 @@ app.use('/api/products',productRouter);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/banners', bannerRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
