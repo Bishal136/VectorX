@@ -12,6 +12,13 @@ const UserLayout = () => {
   const location = useLocation();
   const { getLocation, loading, error } = useGeolocation();
 
+  const isAuthPage =
+    location.pathname === '/login' ||
+    location.pathname === '/register' ||
+    location.pathname === '/verify-otp' ||
+    location.pathname === '/forgot-password' ||
+    location.pathname === '/auth/google/callback';
+
   const isChatPage =
     location.pathname === '/messages' ||
     location.pathname.startsWith('/messages/') ||
@@ -19,6 +26,9 @@ const UserLayout = () => {
     location.pathname.startsWith('/user/messages/');
 
   useEffect(() => {
+    // Don't trigger geolocation prompts on auth or chat pages
+    if (isAuthPage || isChatPage) return;
+
     const fetchLocation = async () => {
       try {
         const coords = await getLocation();
@@ -37,7 +47,12 @@ const UserLayout = () => {
       }
     };
     fetchLocation();
-  }, [getLocation, dispatch]);
+  }, [getLocation, dispatch, isAuthPage, isChatPage]);
+
+  // If accidentally rendered inside UserLayout, render cleanly as standalone outlet
+  if (isAuthPage) {
+    return <Outlet />;
+  }
 
   return (
     <div className={isChatPage ? "h-[100dvh] flex flex-col bg-gray-50 overflow-hidden" : "min-h-screen flex flex-col bg-gray-50"}>

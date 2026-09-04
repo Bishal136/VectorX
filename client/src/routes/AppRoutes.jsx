@@ -50,14 +50,16 @@ import Unauthorized from '../pages/Unauthorized';
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* Public – wrapped in UserLayout */}
+      {/* Standalone Auth Routes (Independent of UserLayout store Navbar & Footer) */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/verify-otp" element={<VerifyOtp />} />
+      <Route path="/auth/google/callback" element={<GoogleCallback />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+
+      {/* Public Store Routes – wrapped in UserLayout */}
       <Route element={<UserLayout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/verify-otp" element={<VerifyOtp />} />
-        <Route path="/auth/google/callback" element={<GoogleCallback />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/products" element={<ProductListing />} />
         <Route path="/products/:id" element={<ProductDetails />} />
