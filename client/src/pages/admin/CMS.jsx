@@ -128,7 +128,8 @@ const CMS = () => {
     imageUrl: '/logo.png',
     text: 'কাছাকাছি',
     subtext: 'Nearby',
-    height: 44,
+    height: 72,
+    adminHeight: 38,
     altText: 'কাছাকাছি Nearby Logo',
   });
   const [logoImageMode, setLogoImageMode] = useState('file'); // 'file' | 'url'
@@ -168,7 +169,8 @@ const CMS = () => {
           imageUrl: cmsConfig.logo.imageUrl || '/logo.png',
           text: cmsConfig.logo.text || 'কাছাকাছি',
           subtext: cmsConfig.logo.subtext || 'Nearby',
-          height: cmsConfig.logo.height || 44,
+          height: Number(cmsConfig.logo.height) || 44,
+          adminHeight: Number(cmsConfig.logo.adminHeight) || 38,
           altText: cmsConfig.logo.altText || 'কাছাকাছি Nearby Logo',
         });
         setLogoPreview(cmsConfig.logo.imageUrl || '/logo.png');
@@ -433,8 +435,13 @@ const CMS = () => {
 
       const payload = {
         logo: {
-          ...logoData,
+          type: logoData.type || 'both',
           imageUrl: currentImageUrl,
+          text: (logoData.text || '').trim(),
+          subtext: (logoData.subtext || '').trim(),
+          height: Number(logoData.height) || 44,
+          adminHeight: Number(logoData.adminHeight) || 38,
+          altText: (logoData.altText || '').trim() || 'Store Logo',
         },
       };
 
@@ -454,12 +461,13 @@ const CMS = () => {
       imageUrl: '/logo.png',
       text: 'কাছাকাছি',
       subtext: 'Nearby',
-      height: 46,
+      height: 72,
+      adminHeight: 40,
       altText: 'কাছাকাছি Nearby Logo',
     });
     setLogoPreview('/logo.png');
     setLogoFile(null);
-    toast.info('Applied Nearby mascot logo preset. Click "Save Logo Settings" to persist.');
+    toast.info('Applied Nearby mascot logo preset. Click "Save Changes" to persist.');
   };
 
   const handleResetLogoToDefault = () => {
@@ -468,12 +476,13 @@ const CMS = () => {
       imageUrl: '',
       text: 'TOP SHELF',
       subtext: 'BRITISH COLUMBIA',
-      height: 40,
+      height: 44,
+      adminHeight: 38,
       altText: 'Top Shelf Logo',
     });
     setLogoPreview('');
     setLogoFile(null);
-    toast.info('Reset to default brand mark. Click "Save Logo Settings" to persist.');
+    toast.info('Reset to default brand mark. Click "Save Changes" to persist.');
   };
 
   return (
@@ -1201,10 +1210,13 @@ const CMS = () => {
                       <span className="text-[10px] text-slate-400 font-mono">Customer Desktop / Mobile</span>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-4 shadow-2xs">
+                    <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-4 shadow-2xs overflow-hidden">
                       {/* Logo container */}
-                      <div className="shrink-0">
+                      <div className="shrink-0 max-w-[50%] overflow-hidden">
                         <Logo
+                          customType={logoData.type}
+                          customImageUrl={logoPreview}
+                          customHeight={Number(logoData.height) || 44}
                           customText={logoData.text}
                           customSubtext={logoData.subtext}
                           size="md"
@@ -1234,10 +1246,14 @@ const CMS = () => {
                       <span className="text-[10px] text-slate-400 font-mono">Control Panel View</span>
                     </div>
 
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-4 shadow-2xs">
-                      <div className="shrink-0">
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-4 shadow-2xs overflow-hidden">
+                      <div className="shrink-0 max-w-[60%] overflow-hidden">
                         <Logo
                           variant="light"
+                          isAdmin={true}
+                          customType={logoData.type}
+                          customImageUrl={logoPreview}
+                          customHeight={Number(logoData.adminHeight) || 38}
                           customText={logoData.text}
                           customSubtext={logoData.subtext}
                           size="md"
@@ -1263,8 +1279,11 @@ const CMS = () => {
                       <span className="text-[10px] text-slate-400 font-mono">Onboarding Brand Card</span>
                     </div>
 
-                    <div className="bg-gradient-to-br from-emerald-50/70 via-slate-50 to-teal-50 border border-emerald-100 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-2xs">
+                    <div className="bg-gradient-to-br from-emerald-50/70 via-slate-50 to-teal-50 border border-emerald-100 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-2xs overflow-hidden">
                       <Logo
+                        customType={logoData.type}
+                        customImageUrl={logoPreview}
+                        customHeight={Math.min(Math.round((Number(logoData.height) || 44) * 1.25), 84)}
                         customText={logoData.text}
                         customSubtext={logoData.subtext}
                         size="lg"
@@ -1285,9 +1304,12 @@ const CMS = () => {
                       <span className="text-[10px] text-slate-400 font-mono">Bottom Page Callout</span>
                     </div>
 
-                    <div className="bg-slate-900 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-2xs">
+                    <div className="bg-slate-900 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-2xs overflow-hidden">
                       <Logo
                         variant="light"
+                        customType={logoData.type}
+                        customImageUrl={logoPreview}
+                        customHeight={Number(logoData.height) || 44}
                         customText={logoData.text}
                         customSubtext={logoData.subtext}
                         size="md"
@@ -1544,30 +1566,125 @@ const CMS = () => {
                     </div>
                   </div>
 
-                  {/* Logo Height Slider */}
-                  <div>
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1.5">
-                      <span className="flex items-center gap-1.5">
-                        <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
-                        Logo Target Height
-                      </span>
-                      <span className="text-purple-700 font-mono text-[11px] bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
-                        {logoData.height || 44} px
-                      </span>
+                  {/* Storefront Logo Height: Type Input + Slider */}
+                  <div className="space-y-2.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" />
+                        Storefront Logo Height
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-purple-200 shadow-2xs">
+                        <input
+                          type="number"
+                          min="16"
+                          max="150"
+                          value={logoData.height === '' ? '' : logoData.height}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setLogoData({
+                              ...logoData,
+                              height: val === '' ? '' : parseInt(val, 10) || 16,
+                            });
+                          }}
+                          className="w-12 text-center font-mono font-bold text-purple-700 bg-transparent text-xs outline-none"
+                          placeholder="44"
+                        />
+                        <span className="text-[11px] font-bold text-purple-600">px</span>
+                      </div>
                     </div>
+
                     <input
                       type="range"
-                      min="24"
-                      max="72"
-                      step="2"
-                      value={logoData.height || 44}
-                      onChange={(e) => setLogoData({ ...logoData, height: parseInt(e.target.value) })}
+                      min="16"
+                      max="140"
+                      step="1"
+                      value={Number(logoData.height) || 44}
+                      onChange={(e) => setLogoData({ ...logoData, height: parseInt(e.target.value, 10) || 16 })}
                       className="w-full accent-purple-600 cursor-pointer"
                     />
-                    <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                      <span>Compact (24px)</span>
-                      <span>Standard (44px)</span>
-                      <span>Large (72px)</span>
+
+                    {/* Quick Preset Buttons for Storefront */}
+                    <div className="flex items-center justify-between gap-1 pt-1">
+                      <span className="text-[10px] text-slate-400 font-medium">Quick sizes:</span>
+                      <div className="flex items-center gap-1">
+                        {[32, 44, 56, 72, 96].map((sz) => (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => setLogoData({ ...logoData, height: sz })}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                              Number(logoData.height) === sz
+                                ? 'bg-purple-600 text-white shadow-2xs'
+                                : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                            }`}
+                          >
+                            {sz}px
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Admin & Dashboard Logo Height: Type Input + Slider */}
+                  <div className="space-y-2.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                        Admin Panel Logo Height
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-purple-200 shadow-2xs">
+                        <input
+                          type="number"
+                          min="16"
+                          max="80"
+                          value={logoData.adminHeight === '' ? '' : logoData.adminHeight}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setLogoData({
+                              ...logoData,
+                              adminHeight: val === '' ? '' : parseInt(val, 10) || 16,
+                            });
+                          }}
+                          className="w-12 text-center font-mono font-bold text-purple-700 bg-transparent text-xs outline-none"
+                          placeholder="38"
+                        />
+                        <span className="text-[11px] font-bold text-purple-600">px</span>
+                      </div>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="18"
+                      max="64"
+                      step="1"
+                      value={Number(logoData.adminHeight) || 38}
+                      onChange={(e) => setLogoData({ ...logoData, adminHeight: parseInt(e.target.value, 10) || 16 })}
+                      className="w-full accent-purple-600 cursor-pointer"
+                    />
+
+                    {/* Quick Preset Buttons for Admin */}
+                    <div className="flex items-center justify-between gap-1 pt-1">
+                      <span className="text-[10px] text-slate-400 font-medium">Admin presets:</span>
+                      <div className="flex items-center gap-1">
+                        {[
+                          { label: 'Compact', val: 28 },
+                          { label: 'Standard', val: 38 },
+                          { label: 'Prominent', val: 48 },
+                        ].map((item) => (
+                          <button
+                            key={item.val}
+                            type="button"
+                            onClick={() => setLogoData({ ...logoData, adminHeight: item.val })}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                              Number(logoData.adminHeight) === item.val
+                                ? 'bg-purple-600 text-white shadow-2xs'
+                                : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                            }`}
+                          >
+                            {item.label} ({item.val}px)
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 

@@ -36,6 +36,10 @@ const Logo = ({
   showText = false,
   customText = null,
   customSubtext = null,
+  customHeight = null,
+  customType = null,
+  customImageUrl = null,
+  isAdmin = false,
 }) => {
   const isLight = variant === 'light';
   const [imgError, setImgError] = useState(false);
@@ -44,21 +48,44 @@ const Logo = ({
   const { cmsConfig, homepageData } = useSelector((state) => state.cms || {});
   const logoConfig = cmsConfig?.logo || homepageData?.logo || {};
 
-  const displayType = logoConfig.type || 'both';
-  const logoUrl = logoConfig.imageUrl || '/logo.png';
+  const displayType = customType || logoConfig.type || 'both';
+  const logoUrl = customImageUrl || logoConfig.imageUrl || '/logo.png';
   const brandTitle = customText || logoConfig.text || 'কাছাকাছি';
-  const brandSubtitle = customSubtext || logoConfig.subtext || 'Nearby';
+  const brandSubtitle = customSubtext !== null && customSubtext !== undefined ? customSubtext : (logoConfig.subtext || 'Nearby');
   const altText = logoConfig.altText || `${brandTitle} Logo`;
 
-  // Size mapping
-  const sizeMap = {
-    sm: { img: 'h-8 max-w-[120px]', leaf: 'w-6 h-6', title: 'text-base', sub: 'text-[9px]' },
-    md: { img: 'h-10 sm:h-11 max-w-[160px]', leaf: 'w-7 h-7 sm:w-8 sm:h-8', title: 'text-lg sm:text-xl', sub: 'text-[9px] sm:text-[10px]' },
-    lg: { img: 'h-14 sm:h-16 max-w-[220px]', leaf: 'w-10 h-10 sm:w-12 sm:h-12', title: 'text-2xl sm:text-3xl', sub: 'text-xs sm:text-sm' },
-    xl: { img: 'h-20 sm:h-24 max-w-[300px]', leaf: 'w-16 h-16 sm:w-20 sm:h-20', title: 'text-3xl sm:text-4xl', sub: 'text-sm sm:text-base' },
+  // Calculate target height
+  let targetHeight;
+  if (customHeight !== null && customHeight !== undefined) {
+    targetHeight = Number(customHeight) || 44;
+  } else if (isAdmin) {
+    targetHeight = Number(logoConfig.adminHeight) || 38;
+  } else if (logoConfig.height) {
+    const baseH = Number(logoConfig.height) || 44;
+    if (size === 'sm') targetHeight = Math.max(22, Math.round(baseH * 0.7));
+    else if (size === 'lg') targetHeight = Math.round(baseH * 1.3);
+    else if (size === 'xl') targetHeight = Math.round(baseH * 1.8);
+    else targetHeight = baseH;
+  } else {
+    const defaultHeights = { sm: 28, md: 44, lg: 60, xl: 80 };
+    targetHeight = defaultHeights[size] || 44;
+  }
+
+  // Dynamic typography font sizing based on targetHeight
+  const getTitleSizeClass = (h) => {
+    if (h >= 70) return 'text-2xl sm:text-3xl';
+    if (h >= 54) return 'text-xl sm:text-2xl';
+    if (h >= 38) return 'text-lg sm:text-xl';
+    return 'text-sm sm:text-base';
   };
 
-  const currentSize = sizeMap[size] || sizeMap.md;
+  const getSubSizeClass = (h) => {
+    if (h >= 70) return 'text-xs sm:text-sm';
+    if (h >= 54) return 'text-[10px] sm:text-xs';
+    if (h >= 38) return 'text-[9px] sm:text-[10px]';
+    return 'text-[8px] sm:text-[9px]';
+  };
+
   const shouldRenderText = !hideText && (showText || displayType === 'both' || displayType === 'text');
   const shouldRenderImage = (displayType === 'image' || displayType === 'both') && logoUrl && !imgError;
   const shouldUseDefaultSVG = displayType === 'default' || (!shouldRenderImage && displayType !== 'text');
@@ -71,13 +98,21 @@ const Logo = ({
           src={logoUrl}
           alt={altText}
           onError={() => setImgError(true)}
-          style={logoConfig.height && size === 'custom' ? { height: `${logoConfig.height}px` } : undefined}
-          className={`${currentSize.img} object-contain shrink-0 drop-shadow-2xs rounded-sm`}
+          style={{
+            height: `${targetHeight}px`,
+            width: 'auto',
+            maxHeight: '100%',
+          }}
+          className="object-contain shrink-0 drop-shadow-2xs rounded-sm transition-all"
         />
       ) : shouldUseDefaultSVG ? (
         /* 2. Default Leaf Mark SVG fallback */
         <LeafMark
-          className={`${currentSize.leaf} shrink-0 ${
+          style={{
+            height: `${targetHeight}px`,
+            width: `${targetHeight}px`,
+          }}
+          className={`shrink-0 transition-all ${
             isLight ? 'text-green-400' : 'text-emerald-700'
           }`}
         />
@@ -87,7 +122,7 @@ const Logo = ({
       {shouldRenderText && (
         <div className="leading-tight flex flex-col justify-center">
           <div
-            className={`font-black tracking-tight font-sans ${currentSize.title} ${
+            className={`font-black tracking-tight font-sans ${getTitleSizeClass(targetHeight)} ${
               isLight ? 'text-white' : 'text-emerald-950'
             }`}
           >
@@ -95,7 +130,7 @@ const Logo = ({
           </div>
           {brandSubtitle && (
             <div
-              className={`font-bold tracking-[0.18em] uppercase ${currentSize.sub} ${
+              className={`font-bold tracking-[0.18em] uppercase ${getSubSizeClass(targetHeight)} ${
                 isLight ? 'text-emerald-400' : 'text-emerald-700'
               }`}
             >

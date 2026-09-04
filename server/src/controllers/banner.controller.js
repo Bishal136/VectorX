@@ -420,9 +420,16 @@ const updateCMSConfig = asyncHandler(async (req, res) => {
   }
 
   if (req.body.logo) {
+    const incomingLogo = { ...req.body.logo };
+    if (incomingLogo.height !== undefined && incomingLogo.height !== null && incomingLogo.height !== '') {
+      incomingLogo.height = parseInt(incomingLogo.height, 10) || 44;
+    }
+    if (incomingLogo.adminHeight !== undefined && incomingLogo.adminHeight !== null && incomingLogo.adminHeight !== '') {
+      incomingLogo.adminHeight = parseInt(incomingLogo.adminHeight, 10) || 38;
+    }
     config.logo = {
       ...(config.logo ? config.logo.toObject() : {}),
-      ...req.body.logo
+      ...incomingLogo
     };
   }
 

@@ -74,7 +74,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
           {/* Mobile Drawer Header */}
           <div className="p-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Logo />
+              <Logo isAdmin={true} />
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 uppercase tracking-wider">
                 Admin
               </span>

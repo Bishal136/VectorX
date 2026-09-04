@@ -33,7 +33,7 @@ const AdminTopbar = ({ sidebarOpen, onToggleSidebar }) => {
         </button>
 
         <Link to="/admin/dashboard" className="flex items-center gap-2">
-          <Logo />
+          <Logo isAdmin={true} />
         </Link>
         <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-purple-100 text-purple-800 uppercase tracking-wider">
           <Shield className="w-3 h-3" />

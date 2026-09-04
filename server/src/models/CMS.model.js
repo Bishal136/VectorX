@@ -83,6 +83,10 @@ const cmsSchema = new mongoose.Schema(
         type: Number,
         default: 44
       },
+      adminHeight: {
+        type: Number,
+        default: 38
+      },
       altText: {
         type: String,
         default: 'কাছাকাছি Nearby Logo'

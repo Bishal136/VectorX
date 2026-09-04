@@ -82,7 +82,8 @@ const updateCMSSchema = Joi.object({
     publicId: Joi.string().allow('', null).optional(),
     text: Joi.string().trim().max(100).allow('', null).optional(),
     subtext: Joi.string().trim().max(100).allow('', null).optional(),
-    height: Joi.number().integer().min(16).max(120).optional(),
+    height: Joi.number().integer().min(16).max(160).allow(null).optional(),
+    adminHeight: Joi.number().integer().min(16).max(100).allow(null).optional(),
     altText: Joi.string().trim().max(100).allow('', null).optional()
   }).optional()
 });

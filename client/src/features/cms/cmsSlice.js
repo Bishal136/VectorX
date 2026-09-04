@@ -197,6 +197,7 @@ const initialState = {
       text: 'কাছাকাছি',
       subtext: 'Nearby',
       height: 44,
+      adminHeight: 38,
       altText: 'কাছাকাছি Nearby Logo'
     }
   },
