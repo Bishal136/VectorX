@@ -148,6 +148,20 @@ export const updateCMSConfig = createAsyncThunk(
   }
 );
 
+export const uploadCMSLogo = createAsyncThunk(
+  'cms/uploadCMSLogo',
+  async (formData, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post('/banners/admin/cms/logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to upload logo');
+    }
+  }
+);
+
 const initialState = {
   homepageData: {
     banners: {
@@ -175,6 +189,15 @@ const initialState = {
       enabled: true,
       title: 'Featured Collections',
       tagline: 'Handpicked best-sellers and top categories'
+    },
+    logo: {
+      type: 'both',
+      imageUrl: '/logo.png',
+      publicId: '',
+      text: 'কাছাকাছি',
+      subtext: 'Nearby',
+      height: 44,
+      altText: 'কাছাকাছি Nearby Logo'
     }
   },
   banners: [],
@@ -308,9 +331,12 @@ const cmsSlice = createSlice({
           .sort((a, b) => (a.order || 0) - (b.order || 0));
       })
 
-      // fetchCMSConfig & updateCMSConfig
+      // fetchCMSConfig & updateCMSConfig & uploadCMSLogo
       .addCase(fetchCMSConfig.fulfilled, (state, action) => {
         state.cmsConfig = action.payload;
+        if (action.payload?.logo) {
+          state.homepageData.logo = action.payload.logo;
+        }
       })
       .addCase(updateCMSConfig.pending, (state) => {
         state.actionLoading = true;
@@ -318,11 +344,24 @@ const cmsSlice = createSlice({
       .addCase(updateCMSConfig.fulfilled, (state, action) => {
         state.actionLoading = false;
         state.cmsConfig = action.payload;
-        state.homepageData.announcement = action.payload.announcement;
-        state.homepageData.heroSettings = action.payload.heroSettings;
-        state.homepageData.promoSection = action.payload.promoSection;
+        if (action.payload?.announcement) state.homepageData.announcement = action.payload.announcement;
+        if (action.payload?.heroSettings) state.homepageData.heroSettings = action.payload.heroSettings;
+        if (action.payload?.promoSection) state.homepageData.promoSection = action.payload.promoSection;
+        if (action.payload?.logo) state.homepageData.logo = action.payload.logo;
       })
       .addCase(updateCMSConfig.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(uploadCMSLogo.pending, (state) => {
+        state.actionLoading = true;
+      })
+      .addCase(uploadCMSLogo.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        state.cmsConfig = action.payload;
+        if (action.payload?.logo) state.homepageData.logo = action.payload.logo;
+      })
+      .addCase(uploadCMSLogo.rejected, (state, action) => {
         state.actionLoading = false;
         state.error = action.payload;
       })

@@ -69,6 +69,7 @@ const {
 
 router.get('/cms', bannerController.getCMSConfig);
 router.put('/cms', validate(updateCMSSchema), bannerController.updateCMSConfig);
+router.post('/cms/logo', uploadSingle('logo'), bannerController.uploadCMSLogo);
 router.get('/banners', bannerController.adminGetBanners);
 router.post('/banners', uploadSingle('image'), validate(createBannerSchema), bannerController.adminCreateBanner);
 router.post('/banners/reorder', validate(reorderBannersSchema), bannerController.adminReorderBanners);

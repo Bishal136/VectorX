@@ -51,7 +51,8 @@ const getHomepageCMS = asyncHandler(async (req, res) => {
       allActive: activeBanners,
       announcement: cmsConfig.announcement,
       heroSettings: cmsConfig.heroSettings,
-      promoSection: cmsConfig.promoSection
+      promoSection: cmsConfig.promoSection,
+      logo: cmsConfig.logo
     }
   });
 });
@@ -418,11 +419,83 @@ const updateCMSConfig = asyncHandler(async (req, res) => {
     };
   }
 
+  if (req.body.logo) {
+    config.logo = {
+      ...(config.logo ? config.logo.toObject() : {}),
+      ...req.body.logo
+    };
+  }
+
   await config.save();
 
   res.status(200).json({
     success: true,
     message: 'CMS configuration updated successfully',
+    data: config
+  });
+});
+
+/**
+ * Admin: Upload and update store logo in CMS
+ * POST /api/admin/cms/logo or POST /api/banners/admin/cms/logo
+ */
+const uploadCMSLogo = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'Logo image file is required');
+  }
+
+  const config = await CMS.getConfig();
+  let uploadedUrl = '';
+  let uploadedPublicId = null;
+
+  try {
+    const uploadRes = await uploadFile(req.file.path, {
+      folder: 'vectorx/logo',
+      transformation: [{ quality: 'auto', fetch_format: 'auto' }]
+    });
+    uploadedUrl = uploadRes.secure_url;
+    uploadedPublicId = uploadRes.public_id;
+  } catch (err) {
+    console.warn('Cloudinary upload failed, using local public asset fallback:', err.message);
+    const fs = require('fs');
+    const path = require('path');
+    const targetDir = path.join(__dirname, '../../../client/public/uploads');
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    const filename = `logo-${Date.now()}${path.extname(req.file.originalname || '.png')}`;
+    const targetPath = path.join(targetDir, filename);
+    fs.copyFileSync(req.file.path, targetPath);
+    uploadedUrl = `/uploads/${filename}`;
+    uploadedPublicId = null;
+  } finally {
+    const fs = require('fs');
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {}
+    }
+  }
+
+  // Cleanup old Cloudinary image if it exists
+  if (config.logo?.publicId) {
+    try {
+      await deleteFile(config.logo.publicId);
+    } catch (e) {}
+  }
+
+  config.logo = {
+    ...(config.logo ? config.logo.toObject() : {}),
+    imageUrl: uploadedUrl,
+    publicId: uploadedPublicId,
+    type: config.logo?.type === 'default' ? 'both' : (config.logo?.type || 'both')
+  };
+
+  await config.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Logo uploaded and updated successfully',
     data: config
   });
 });
@@ -439,5 +512,6 @@ module.exports = {
   adminToggleBannerStatus,
   adminReorderBanners,
   getCMSConfig,
-  updateCMSConfig
+  updateCMSConfig,
+  uploadCMSLogo
 };

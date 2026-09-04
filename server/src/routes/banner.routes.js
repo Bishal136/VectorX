@@ -32,6 +32,13 @@ router.put(
   validate(updateCMSSchema),
   bannerController.updateCMSConfig
 );
+router.post(
+  '/admin/cms/logo',
+  verifyToken,
+  isAdmin,
+  uploadSingle('logo'),
+  bannerController.uploadCMSLogo
+);
 
 // Admin Banners Management
 router.get('/admin', verifyToken, isAdmin, bannerController.adminGetBanners);

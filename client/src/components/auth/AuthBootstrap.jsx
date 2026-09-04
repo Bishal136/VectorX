@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchCurrentUser } from '../../features/auth/authSlice';
 import { fetchCart } from '../../features/cart/cartSlice';
+import { fetchHomepageCMS } from '../../features/cms/cmsSlice';
 
 const AuthBootstrap = ({ children }) => {
   const dispatch = useDispatch();
@@ -12,6 +13,9 @@ const AuthBootstrap = ({ children }) => {
   useEffect(() => {
     if (hasRun.current) return;
     hasRun.current = true;
+
+    // Load store CMS configuration (dynamic logo, announcement bar, hero settings)
+    dispatch(fetchHomepageCMS());
 
     if (token) {
       if (!user) {

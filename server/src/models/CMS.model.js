@@ -56,6 +56,37 @@ const cmsSchema = new mongoose.Schema(
         type: String,
         default: 'Handpicked best-sellers and top categories'
       }
+    },
+    logo: {
+      type: {
+        type: String,
+        enum: ['default', 'image', 'text', 'both'],
+        default: 'both'
+      },
+      imageUrl: {
+        type: String,
+        default: '/logo.png'
+      },
+      publicId: {
+        type: String,
+        default: ''
+      },
+      text: {
+        type: String,
+        default: 'কাছাকাছি'
+      },
+      subtext: {
+        type: String,
+        default: 'Nearby'
+      },
+      height: {
+        type: Number,
+        default: 44
+      },
+      altText: {
+        type: String,
+        default: 'কাছাকাছি Nearby Logo'
+      }
     }
   },
   {

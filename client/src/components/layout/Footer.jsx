@@ -87,12 +87,7 @@ const Footer = () => {
 
           {/* Col 3: Center Brand Logo (Desktop) */}
           <div className="hidden lg:flex flex-col items-center justify-center space-y-2 pt-2">
-            <div className="flex items-center gap-1 text-2xl font-black tracking-tight text-emerald-800 font-sans">
-              <span className="text-[#1B8057]">DEAL</span>
-              <span className="text-slate-900 font-extrabold flex items-center">
-                P<span className="text-emerald-600 font-bold">O</span>RT
-              </span>
-            </div>
+            <Logo size="md" />
             <p className="text-[11px] text-slate-500 text-center max-w-[180px] leading-relaxed">
               Your one-stop destination for authentic deals & daily savings.
             </p>

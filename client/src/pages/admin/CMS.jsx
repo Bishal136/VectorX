@@ -10,9 +10,11 @@ import {
   reorderBanners,
   fetchCMSConfig,
   updateCMSConfig,
+  uploadCMSLogo,
 } from '../../features/cms/cmsSlice';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import Logo from '../../components/common/Logo';
 import { toast } from 'react-toastify';
 import {
   Layers,
@@ -39,6 +41,11 @@ import {
   MonitorPlay,
   UploadCloud,
   Link2,
+  Type,
+  SlidersHorizontal,
+  Check,
+  ShieldCheck,
+  RefreshCcw,
 } from 'lucide-react';
 
 const BANNER_SLOTS = [
@@ -115,6 +122,20 @@ const CMS = () => {
     showArrows: true,
   });
 
+  // Logo & Brand Identity State
+  const [logoData, setLogoData] = useState({
+    type: 'both', // 'default' | 'image' | 'text' | 'both'
+    imageUrl: '/logo.png',
+    text: 'কাছাকাছি',
+    subtext: 'Nearby',
+    height: 44,
+    altText: 'কাছাকাছি Nearby Logo',
+  });
+  const [logoImageMode, setLogoImageMode] = useState('file'); // 'file' | 'url'
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState('/logo.png');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
   // Load initial data
   useEffect(() => {
     dispatch(fetchAdminBanners({ limit: 100 }));
@@ -140,6 +161,17 @@ const CMS = () => {
           showDots: cmsConfig.heroSettings.showDots ?? true,
           showArrows: cmsConfig.heroSettings.showArrows ?? true,
         });
+      }
+      if (cmsConfig.logo) {
+        setLogoData({
+          type: cmsConfig.logo.type || 'both',
+          imageUrl: cmsConfig.logo.imageUrl || '/logo.png',
+          text: cmsConfig.logo.text || 'কাছাকাছি',
+          subtext: cmsConfig.logo.subtext || 'Nearby',
+          height: cmsConfig.logo.height || 44,
+          altText: cmsConfig.logo.altText || 'কাছাকাছি Nearby Logo',
+        });
+        setLogoPreview(cmsConfig.logo.imageUrl || '/logo.png');
       }
     }
   }, [cmsConfig]);
@@ -347,6 +379,103 @@ const CMS = () => {
     }
   };
 
+  // ----- Logo & Brand Identity Handlers -----
+  const handleLogoFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select a valid image file (PNG, JPG, SVG, WebP)');
+        return;
+      }
+      setLogoFile(file);
+      setLogoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleUploadLogoFile = async () => {
+    if (!logoFile) {
+      toast.error('Please select an image file first');
+      return;
+    }
+    setIsUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append('logo', logoFile);
+      const res = await dispatch(uploadCMSLogo(formData)).unwrap();
+      toast.success('Logo image uploaded successfully!');
+      setLogoFile(null);
+      if (res?.logo?.imageUrl) {
+        setLogoPreview(res.logo.imageUrl);
+        setLogoData((prev) => ({ ...prev, imageUrl: res.logo.imageUrl }));
+      }
+      dispatch(fetchCMSConfig());
+    } catch (err) {
+      toast.error(typeof err === 'string' ? err : err?.message || 'Failed to upload logo');
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleSaveLogoSettings = async () => {
+    try {
+      setIsUploadingLogo(true);
+      let currentImageUrl = logoData.imageUrl;
+
+      if (logoImageMode === 'file' && logoFile) {
+        const formData = new FormData();
+        formData.append('logo', logoFile);
+        const uploadRes = await dispatch(uploadCMSLogo(formData)).unwrap();
+        if (uploadRes?.logo?.imageUrl) {
+          currentImageUrl = uploadRes.logo.imageUrl;
+        }
+        setLogoFile(null);
+      }
+
+      const payload = {
+        logo: {
+          ...logoData,
+          imageUrl: currentImageUrl,
+        },
+      };
+
+      await dispatch(updateCMSConfig(payload)).unwrap();
+      toast.success('Logo & Brand Identity settings saved successfully!');
+      dispatch(fetchCMSConfig());
+    } catch (err) {
+      toast.error(typeof err === 'string' ? err : err?.message || 'Failed to save logo settings');
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleApplyNearbyPreset = () => {
+    setLogoData({
+      type: 'both',
+      imageUrl: '/logo.png',
+      text: 'কাছাকাছি',
+      subtext: 'Nearby',
+      height: 46,
+      altText: 'কাছাকাছি Nearby Logo',
+    });
+    setLogoPreview('/logo.png');
+    setLogoFile(null);
+    toast.info('Applied Nearby mascot logo preset. Click "Save Logo Settings" to persist.');
+  };
+
+  const handleResetLogoToDefault = () => {
+    setLogoData({
+      type: 'default',
+      imageUrl: '',
+      text: 'TOP SHELF',
+      subtext: 'BRITISH COLUMBIA',
+      height: 40,
+      altText: 'Top Shelf Logo',
+    });
+    setLogoPreview('');
+    setLogoFile(null);
+    toast.info('Reset to default brand mark. Click "Save Logo Settings" to persist.');
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* ──────────────── Top Header & Overview ──────────────── */}
@@ -493,6 +622,18 @@ const CMS = () => {
             }`}
           >
             <MonitorPlay className="w-4 h-4" /> Live Storefront Simulator
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('logo')}
+            className={`px-4 py-3 text-xs font-bold rounded-t-2xl flex items-center gap-2 border-b-2 transition cursor-pointer shrink-0 ${
+              activeTab === 'logo'
+                ? 'border-purple-600 text-purple-700 bg-white shadow-2xs'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <ImageIcon className="w-4 h-4" /> Logo & Brand Identity
           </button>
         </div>
 
@@ -976,6 +1117,493 @@ const CMS = () => {
                       <p className="text-xs">No active hero slide configured yet.</p>
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* TAB 5: LOGO & BRAND IDENTITY                                             */}
+          {/* ========================================================================= */}
+          {activeTab === 'logo' && (
+            <div className="space-y-6">
+              {/* Top Banner Card */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-purple-50 p-5 rounded-2xl border border-emerald-100">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black tracking-wider uppercase">
+                      Brand Identity
+                    </span>
+                    <h3 className="font-black text-slate-900 text-base">Store Logo & Brand Settings</h3>
+                  </div>
+                  <p className="text-xs text-slate-600 max-w-2xl">
+                    Configure your official store logo, brand name, and typography. Updates are instantly synchronized across the customer storefront (Navbar, Mobile Menu, Footer), the Seller Topbar, and Admin Dashboard.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleApplyNearbyPreset}
+                    className="px-3 py-2 text-xs font-bold rounded-xl bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-50 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    title="Load the uploaded Nearby mascot logo preset"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    Apply Nearby Logo Preset
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResetLogoToDefault}
+                    className="px-3 py-2 text-xs font-bold rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    title="Reset to default SVG leaf mark"
+                  >
+                    <RefreshCcw className="w-3.5 h-3.5 text-slate-500" />
+                    Reset to Default
+                  </button>
+
+                  <Button
+                    onClick={handleSaveLogoSettings}
+                    disabled={isUploadingLogo || actionLoading}
+                    className="rounded-xl font-bold text-xs shadow-md"
+                  >
+                    {isUploadingLogo || actionLoading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> Saving...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Save Logo Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Section 1: Live Layout Simulations */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-purple-600" />
+                    Live Multi-Context Previews
+                  </h4>
+                  <span className="text-[11px] text-slate-400 font-medium">Real-time simulation based on current settings</span>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {/* Context 1: Storefront Main Header */}
+                  <div className="border border-slate-200 rounded-2xl p-4 bg-white shadow-2xs space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        1. Storefront Main Header (Light Navbar)
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">Customer Desktop / Mobile</span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-4 shadow-2xs">
+                      {/* Logo container */}
+                      <div className="shrink-0">
+                        <Logo
+                          customText={logoData.text}
+                          customSubtext={logoData.subtext}
+                          size="md"
+                        />
+                      </div>
+
+                      {/* Mock search bar */}
+                      <div className="hidden sm:flex flex-1 max-w-xs items-center bg-slate-100 rounded-full px-3 py-1.5 text-[11px] text-slate-400">
+                        <Search className="w-3 h-3 mr-2" /> Search fresh grocery, foods...
+                      </div>
+
+                      {/* Mock actions */}
+                      <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600">
+                        <span className="hidden md:inline px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[10px]">Cart (3)</span>
+                        <span className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-[10px]">👤</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Context 2: Dark Topbar (Admin / Seller Dashboard) */}
+                  <div className="border border-slate-200 rounded-2xl p-4 bg-white shadow-2xs space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-purple-500" />
+                        2. Admin & Seller Header (Dark Background)
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">Control Panel View</span>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-4 shadow-2xs">
+                      <div className="shrink-0">
+                        <Logo
+                          variant="light"
+                          customText={logoData.text}
+                          customSubtext={logoData.subtext}
+                          size="md"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-purple-900/60 text-purple-300 text-[10px] font-bold border border-purple-700/50">
+                          Admin Portal
+                        </span>
+                        <span className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-xs text-white">⚡</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Context 3: Customer Login & Register Brand Card */}
+                  <div className="border border-slate-200 rounded-2xl p-4 bg-white shadow-2xs space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        3. Auth Screens (/login & /register hero)
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">Onboarding Brand Card</span>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-emerald-50/70 via-slate-50 to-teal-50 border border-emerald-100 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-2xs">
+                      <Logo
+                        customText={logoData.text}
+                        customSubtext={logoData.subtext}
+                        size="lg"
+                      />
+                      <p className="text-[11px] text-slate-500 font-medium mt-2 max-w-xs">
+                        Your trusted neighborhood marketplace for everyday freshness and lightning-fast delivery.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Context 4: Storefront Footer Branding */}
+                  <div className="border border-slate-200 rounded-2xl p-4 bg-white shadow-2xs space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        4. Storefront Footer Brand Block
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">Bottom Page Callout</span>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-2xs">
+                      <Logo
+                        variant="light"
+                        customText={logoData.text}
+                        customSubtext={logoData.subtext}
+                        size="md"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-2 max-w-xs font-normal">
+                        Connecting communities with authentic local products and fast, reliable doorstep service.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Logo Source & Branding Controls */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Left Column: Image Upload & Source (6 cols) */}
+                <div className="lg:col-span-6 space-y-5 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                      <UploadCloud className="w-4 h-4 text-purple-600" /> Logo Image & Asset Source
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Choose an image file from your device, enter an image URL, or use the pre-loaded Nearby logo.
+                    </p>
+                  </div>
+
+                  {/* Source Toggle Pills */}
+                  <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl max-w-xs text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setLogoImageMode('file')}
+                      className={`flex-1 py-1.5 px-3 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                        logoImageMode === 'file' ? 'bg-white text-purple-700 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      <UploadCloud className="w-3.5 h-3.5" /> Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogoImageMode('url')}
+                      className={`flex-1 py-1.5 px-3 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                        logoImageMode === 'url' ? 'bg-white text-purple-700 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      <Link2 className="w-3.5 h-3.5" /> Image URL
+                    </button>
+                  </div>
+
+                  {/* Mode: File Upload */}
+                  {logoImageMode === 'file' && (
+                    <div className="space-y-4">
+                      <div className="border-2 border-dashed border-slate-200 hover:border-purple-300 rounded-2xl p-6 text-center transition bg-slate-50/50 hover:bg-purple-50/20 relative group">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoFileChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        />
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center group-hover:scale-110 transition">
+                            <UploadCloud className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">
+                              Click to browse or drag & drop logo image
+                            </p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              PNG, JPG, SVG, WebP (Max 5MB • Transparent background recommended)
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Selected File / Current Preview Pill */}
+                      {logoPreview && (
+                        <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-lg bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+                              <img src={logoPreview} alt="Preview" className="w-full h-full object-contain" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800 truncate max-w-[200px]">
+                                {logoFile ? logoFile.name : (logoData.imageUrl || 'Current Logo Asset')}
+                              </p>
+                              <p className="text-[10px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Ready for display
+                              </p>
+                            </div>
+                          </div>
+
+                          {logoFile && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleUploadLogoFile}
+                              disabled={isUploadingLogo}
+                              className="rounded-xl text-xs"
+                            >
+                              {isUploadingLogo ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" />
+                              ) : (
+                                <UploadCloud className="w-3.5 h-3.5 mr-1" />
+                              )}
+                              Upload Now
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Mode: Image URL */}
+                  {logoImageMode === 'url' && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Direct Image URL (HTTPS)
+                        </label>
+                        <div className="relative">
+                          <Link2 className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                          <input
+                            type="url"
+                            value={logoData.imageUrl}
+                            onChange={(e) => {
+                              setLogoData({ ...logoData, imageUrl: e.target.value });
+                              setLogoPreview(e.target.value);
+                            }}
+                            placeholder="https://your-domain.com/logo.png"
+                            className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2 text-xs bg-white outline-none focus:ring-2 focus:ring-purple-500 font-mono text-slate-700"
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-1 block">
+                          Tip: Use an SVG or transparent PNG link from Cloudinary, Imgur, or your CDN.
+                        </span>
+                      </div>
+
+                      {logoData.imageUrl && (
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                          <div className="w-12 h-12 rounded-lg bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                            <img
+                              src={logoData.imageUrl}
+                              alt="URL Preview"
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-700 truncate max-w-xs">
+                              URL Active
+                            </p>
+                            <p className="text-[10px] text-slate-500 truncate max-w-xs">
+                              {logoData.imageUrl}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Shortcut: User Attached Logo Preset */}
+                  <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-lg bg-white border border-emerald-200 p-1 flex items-center justify-center shrink-0">
+                        <img src="/logo.png" alt="Nearby Mascot" className="w-full h-full object-contain" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-emerald-900">Nearby Mascot Brand Logo</p>
+                        <p className="text-[10px] text-emerald-700">Bengali typography 'কাছাকাছি' with shopping mascot</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleApplyNearbyPreset}
+                      className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-2xs shrink-0 cursor-pointer"
+                    >
+                      Use Asset
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right Column: Display Style & Typography (6 cols) */}
+                <div className="lg:col-span-6 space-y-5 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                      <Palette className="w-4 h-4 text-purple-600" /> Display Mode & Typography
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Configure how the logo is rendered alongside the store name and tagline.
+                    </p>
+                  </div>
+
+                  {/* Display Mode Radio Cards */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-2">Display Style</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'both', label: 'Image + Brand Text', desc: 'Mascot/emblem with brand title' },
+                        { id: 'image', label: 'Logo Image Only', desc: 'Graphic badge with no text label' },
+                        { id: 'text', label: 'Brand Text Only', desc: 'Custom typographic header' },
+                        { id: 'default', label: 'Original Leaf Mark', desc: 'Built-in vector SVG emblem' },
+                      ].map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => setLogoData({ ...logoData, type: item.id })}
+                          className={`p-3 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
+                            logoData.type === item.id
+                              ? 'border-purple-600 bg-purple-50/40 ring-1 ring-purple-600'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-slate-900">{item.label}</span>
+                            {logoData.type === item.id && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-500">{item.desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Brand Primary Text & Subtitle */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Brand Name / Title
+                      </label>
+                      <div className="relative">
+                        <Type className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          value={logoData.text}
+                          onChange={(e) => setLogoData({ ...logoData, text: e.target.value })}
+                          placeholder="e.g. কাছাকাছি or TOP SHELF"
+                          className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2 text-xs bg-white font-bold outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Tagline / Subtext
+                      </label>
+                      <input
+                        type="text"
+                        value={logoData.subtext}
+                        onChange={(e) => setLogoData({ ...logoData, subtext: e.target.value })}
+                        placeholder="e.g. Nearby or BRITISH COLUMBIA"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs bg-white font-semibold outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Logo Height Slider */}
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1.5">
+                      <span className="flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                        Logo Target Height
+                      </span>
+                      <span className="text-purple-700 font-mono text-[11px] bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                        {logoData.height || 44} px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="24"
+                      max="72"
+                      step="2"
+                      value={logoData.height || 44}
+                      onChange={(e) => setLogoData({ ...logoData, height: parseInt(e.target.value) })}
+                      className="w-full accent-purple-600 cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                      <span>Compact (24px)</span>
+                      <span>Standard (44px)</span>
+                      <span>Large (72px)</span>
+                    </div>
+                  </div>
+
+                  {/* Accessibility Alt Text */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Image Alt Text (SEO & Accessibility)
+                    </label>
+                    <input
+                      type="text"
+                      value={logoData.altText}
+                      onChange={(e) => setLogoData({ ...logoData, altText: e.target.value })}
+                      placeholder="e.g. কাছাকাছি Nearby Store Logo"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs bg-white outline-none focus:ring-2 focus:ring-purple-500 font-medium"
+                    />
+                  </div>
+
+                  {/* Save Settings Footer */}
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-400">All changes save instantly to MongoDB.</span>
+                    <Button
+                      onClick={handleSaveLogoSettings}
+                      disabled={isUploadingLogo || actionLoading}
+                      className="rounded-xl font-bold text-xs"
+                    >
+                      {isUploadingLogo || actionLoading ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> Saving...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Save Changes
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

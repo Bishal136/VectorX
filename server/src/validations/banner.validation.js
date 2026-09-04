@@ -75,6 +75,15 @@ const updateCMSSchema = Joi.object({
     enabled: Joi.boolean().optional(),
     title: Joi.string().trim().optional(),
     tagline: Joi.string().trim().allow('').optional()
+  }).optional(),
+  logo: Joi.object({
+    type: Joi.string().valid('default', 'image', 'text', 'both').optional(),
+    imageUrl: Joi.string().allow('', null).optional(),
+    publicId: Joi.string().allow('', null).optional(),
+    text: Joi.string().trim().max(100).allow('', null).optional(),
+    subtext: Joi.string().trim().max(100).allow('', null).optional(),
+    height: Joi.number().integer().min(16).max(120).optional(),
+    altText: Joi.string().trim().max(100).allow('', null).optional()
   }).optional()
 });
 
