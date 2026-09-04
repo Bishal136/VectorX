@@ -33,13 +33,77 @@ const register = asyncHandler(async (req, res) => {
   });
 
   if (userExists) {
-    return res.status(400).json({
-      success: false,
-      message: 'User already exists with this email or phone'
+    // If the account is already verified, inform them to login
+    if (userExists.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email or phone. Please sign in.'
+      });
+    }
+
+    // Account was created but not yet verified:
+    // Update password, name, phone, role, and send fresh OTP
+    userExists.name = name ? name.trim() : userExists.name;
+    userExists.password = password; // Will be hashed in userSchema pre('save')
+    if (normalizedPhone) userExists.phone = normalizedPhone;
+    if (role) userExists.role = role;
+    await userExists.save();
+
+    // If role is seller, ensure seller profile exists
+    let sellerProfile = null;
+    if (userExists.role === 'seller') {
+      try {
+        sellerProfile = await Seller.findOne({ user: userExists._id });
+        if (!sellerProfile) {
+          sellerProfile = await Seller.create({
+            user: userExists._id,
+            shopName: `${userExists.name || 'Merchant'}'s Shop`,
+            shopAddress: {
+              line1: 'Please update your shop address',
+              city: 'Unknown',
+              pincode: '000000'
+            },
+            location: {
+              type: 'Point',
+              coordinates: [0, 0]
+            },
+            verificationStatus: 'pending',
+            isVerified: false
+          });
+        }
+      } catch (error) {
+        console.error('Failed to update seller profile:', error);
+      }
+    }
+
+    // Generate fresh OTP
+    await sendOTP(normalizedEmail);
+
+    const responseData = {
+      id: userExists._id,
+      name: userExists.name,
+      email: userExists.email,
+      role: userExists.role,
+      isVerified: userExists.isVerified
+    };
+
+    if (sellerProfile) {
+      responseData.sellerProfile = {
+        id: sellerProfile._id,
+        shopName: sellerProfile.shopName,
+        verificationStatus: sellerProfile.verificationStatus,
+        needsCompletion: true
+      };
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Account already registered but not verified. A new OTP has been sent to your email.',
+      data: responseData
     });
   }
 
-  // Create user
+  // Create new user
   const user = await User.create({
     name: name ? name.trim() : name,
     email: normalizedEmail,

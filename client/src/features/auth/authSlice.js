@@ -27,7 +27,12 @@ export const registerUser = createAsyncThunk(
       const response = await axiosInstance.post('/auth/register', userData);
       return response.data.data; // { id, email, role, isVerified, ... }
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Registration failed');
+      const message =
+        error.response?.data?.message ||
+        (error.code === 'ECONNABORTED'
+          ? 'Server took too long to respond. Please try again.'
+          : error.message || 'Registration failed');
+      return rejectWithValue(message);
     }
   }
 );

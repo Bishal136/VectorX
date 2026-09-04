@@ -113,10 +113,29 @@ const Register = () => {
       {(formError || error) && (
         <div
           role="alert"
-          className="mb-3.5 rounded-2xl bg-red-500/20 border border-red-400/40 p-3 text-xs sm:text-sm text-red-200 flex items-start gap-2.5 backdrop-blur-md shadow-lg"
+          className="mb-3.5 rounded-2xl bg-red-500/20 border border-red-400/40 p-3 text-xs sm:text-sm text-red-200 flex flex-col gap-1.5 backdrop-blur-md shadow-lg"
         >
-          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-          <span className="font-medium">{formError || error}</span>
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <span className="font-medium">{formError || error}</span>
+          </div>
+          {(error || formError)?.toString().toLowerCase().includes('already exists') && (
+            <div className="pl-6.5 flex items-center gap-3 pt-1">
+              <Link
+                to={`/verify-otp?email=${encodeURIComponent(formData.email.trim().toLowerCase())}`}
+                className="text-xs font-bold text-amber-300 hover:text-amber-200 underline"
+              >
+                Verify OTP →
+              </Link>
+              <span className="text-white/40">&middot;</span>
+              <Link
+                to="/login"
+                className="text-xs font-bold text-emerald-300 hover:text-emerald-200 underline"
+              >
+                Sign in →
+              </Link>
+            </div>
+          )}
         </div>
       )}
 
