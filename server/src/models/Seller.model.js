@@ -13,7 +13,7 @@ const sellerSchema = new mongoose.Schema({
   },
   headline: {
     type: String,
-    default: 'Full-Stack Developer | UI/UX Designer | Server Manager | Tech Counsultant'
+    default: ''
   },
   bio: {
     type: String,
@@ -21,7 +21,7 @@ const sellerSchema = new mongoose.Schema({
   },
   skills: {
     type: [String],
-    default: ['HTML', 'Wordpress', 'PHP', 'CSS', 'Node.js', 'React.js', 'Shopify Stores', 'JavaScript', 'CMS']
+    default: []
   },
   socialLinks: {
     linkedin: { type: String, default: '' },
@@ -34,11 +34,11 @@ const sellerSchema = new mongoose.Schema({
     publicId: { type: String, default: null },
     slogan: { 
       type: String, 
-      default: 'Building The Future with Code, Creativity, and Technology' 
+      default: '' 
     },
     subtitle: { 
       type: String, 
-      default: 'Innovate, Create ★★★★★' 
+      default: '' 
     }
   },
   logo: {

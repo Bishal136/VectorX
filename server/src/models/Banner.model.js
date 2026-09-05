@@ -82,6 +82,10 @@ const bannerSchema = new mongoose.Schema(
       trim: true,
       default: '#ffffff'
     },
+    showTextOverlay: {
+      type: Boolean,
+      default: false
+    },
     order: {
       type: Number,
       default: 0,

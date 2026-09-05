@@ -931,8 +931,8 @@ const uploadSellerBanner = asyncHandler(async (req, res) => {
   seller.banner = {
     url: result.secure_url,
     publicId: result.public_id,
-    slogan: seller.banner?.slogan || 'Building The Future with Code, Creativity, and Technology',
-    subtitle: seller.banner?.subtitle || 'Innovate, Create ★★★★★'
+    slogan: seller.banner?.slogan || '',
+    subtitle: seller.banner?.subtitle || ''
   };
   await seller.save();
 

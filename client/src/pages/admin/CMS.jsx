@@ -249,6 +249,7 @@ const CMS = () => {
       badgeText: '',
       bgColor: '#0f172a',
       textColor: '#ffffff',
+      showTextOverlay: false,
       order: banners.length,
       isActive: true,
       startDate: '',
@@ -274,6 +275,7 @@ const CMS = () => {
       badgeText: banner.badgeText || '',
       bgColor: banner.bgColor || '#0f172a',
       textColor: banner.textColor || '#ffffff',
+      showTextOverlay: banner.showTextOverlay ?? false,
       order: banner.order || 0,
       isActive: banner.isActive ?? true,
       startDate: banner.startDate ? banner.startDate.split('T')[0] : '',
@@ -327,6 +329,7 @@ const CMS = () => {
         payload.append('badgeText', formData.badgeText.trim());
         payload.append('bgColor', formData.bgColor);
         payload.append('textColor', formData.textColor);
+        payload.append('showTextOverlay', formData.showTextOverlay);
         payload.append('order', formData.order);
         payload.append('isActive', formData.isActive);
         if (formData.startDate) payload.append('startDate', formData.startDate);
@@ -2166,6 +2169,25 @@ const CMS = () => {
                 </span>
               </div>
             )}
+          </div>
+
+          {/* Text & Button Overlay Toggle */}
+          <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+            <div className="pr-3">
+              <label className="font-bold text-slate-800 block text-xs">Text & Button Overlay</label>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Disable if your banner already has artwork and text designed on it. Enable to render title, subtitle, and CTA button over the image.
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={Boolean(formData.showTextOverlay)}
+                onChange={(e) => setFormData({ ...formData, showTextOverlay: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+            </label>
           </div>
 
           {/* CTA Text & Link */}

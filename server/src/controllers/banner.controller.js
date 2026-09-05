@@ -207,6 +207,7 @@ const adminCreateBanner = asyncHandler(async (req, res) => {
     badgeText: req.body.badgeText || '',
     bgColor: req.body.bgColor || '#0f172a',
     textColor: req.body.textColor || '#ffffff',
+    showTextOverlay: req.body.showTextOverlay !== undefined ? (req.body.showTextOverlay === 'true' || req.body.showTextOverlay === true) : false,
     order: orderNumber,
     isActive: req.body.isActive !== undefined ? req.body.isActive : true,
     startDate: req.body.startDate ? new Date(req.body.startDate) : null,
@@ -296,6 +297,9 @@ const adminUpdateBanner = asyncHandler(async (req, res) => {
   if (req.body.badgeText !== undefined) banner.badgeText = req.body.badgeText;
   if (req.body.bgColor !== undefined) banner.bgColor = req.body.bgColor;
   if (req.body.textColor !== undefined) banner.textColor = req.body.textColor;
+  if (req.body.showTextOverlay !== undefined) {
+    banner.showTextOverlay = req.body.showTextOverlay === 'true' || req.body.showTextOverlay === true;
+  }
   if (req.body.order !== undefined) banner.order = parseInt(req.body.order);
   if (req.body.isActive !== undefined) banner.isActive = req.body.isActive;
   if (req.body.startDate !== undefined) banner.startDate = req.body.startDate ? new Date(req.body.startDate) : null;

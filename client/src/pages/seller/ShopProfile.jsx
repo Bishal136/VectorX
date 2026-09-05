@@ -13,8 +13,6 @@ import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
-import defaultBannerCover from '../../assets/bannar/seller-banner-cover.png';
-import defaultSellerAvatar from '../../assets/bannar/seller-avatar.png';
 
 const formatCurrency = (amount) => {
   return `৳${Number(amount || 0).toLocaleString(undefined, {
@@ -22,18 +20,6 @@ const formatCurrency = (amount) => {
     maximumFractionDigits: 2,
   })}`;
 };
-
-const DEFAULT_SKILLS = [
-  'HTML',
-  'Wordpress',
-  'PHP',
-  'CSS',
-  'Node.js',
-  'React.js',
-  'Shopify Stores',
-  'JavaScript',
-  'CMS',
-];
 
 const ShopProfile = () => {
   const dispatch = useDispatch();
@@ -56,13 +42,13 @@ const ShopProfile = () => {
   // Active settings tab: 'identity' | 'location' | 'payout'
   const [activeTab, setActiveTab] = useState('identity');
 
-  // Quick edit profile modal form state
+  // Quick edit profile modal form state (defaults to empty/none)
   const [profileForm, setProfileForm] = useState({
     ownerName: '',
     shopName: '',
     headline: '',
     bio: '',
-    skills: DEFAULT_SKILLS,
+    skills: [],
     linkedin: '',
     website: '',
     github: '',
@@ -111,7 +97,7 @@ const ShopProfile = () => {
     dispatch(fetchEarnings('month'));
   }, [dispatch]);
 
-  // Sync profile data into form states
+  // Sync profile data into form states (no fake defaults)
   useEffect(() => {
     if (profile) {
       setFormData({
@@ -137,19 +123,15 @@ const ShopProfile = () => {
       setProfileForm({
         ownerName: profile.user?.name || '',
         shopName: profile.shopName || '',
-        headline:
-          profile.headline ||
-          'Full-Stack Developer | UI/UX Designer | Server Manager | Tech Counsultant',
+        headline: profile.headline || '',
         bio: profile.bio || '',
-        skills: profile.skills && profile.skills.length > 0 ? profile.skills : DEFAULT_SKILLS,
+        skills: Array.isArray(profile.skills) ? profile.skills : [],
         linkedin: profile.socialLinks?.linkedin || '',
         website: profile.socialLinks?.website || '',
         github: profile.socialLinks?.github || '',
         twitter: profile.socialLinks?.twitter || '',
-        bannerSlogan:
-          profile.banner?.slogan ||
-          'Building The Future with Code, Creativity, and Technology',
-        bannerSubtitle: profile.banner?.subtitle || 'Innovate, Create ★★★★★',
+        bannerSlogan: profile.banner?.slogan || '',
+        bannerSubtitle: profile.banner?.subtitle || '',
       });
 
       setVerifyForm({
@@ -240,6 +222,38 @@ const ShopProfile = () => {
     }
   };
 
+  // Remove current banner
+  const handleRemoveBanner = async () => {
+    if (!window.confirm('Are you sure you want to remove the cover banner?')) return;
+    try {
+      await dispatch(
+        updateSellerProfile({
+          banner: { url: null, publicId: null, slogan: '', subtitle: '' },
+        })
+      ).unwrap();
+      setSuccessMessage('Cover banner removed.');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Remove current avatar
+  const handleRemoveAvatar = async () => {
+    if (!window.confirm('Are you sure you want to remove the profile avatar?')) return;
+    try {
+      await dispatch(
+        updateSellerProfile({
+          logo: { url: null, publicId: null },
+        })
+      ).unwrap();
+      setSuccessMessage('Profile avatar removed.');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // Submit quick edit profile modal
   const handleProfileFormSubmit = async (e) => {
     e.preventDefault();
@@ -251,7 +265,7 @@ const ShopProfile = () => {
       shopName: profileForm.shopName.trim(),
       headline: profileForm.headline.trim(),
       bio: profileForm.bio.trim(),
-      skills: profileForm.skills,
+      skills: profileForm.skills || [],
       socialLinks: {
         linkedin: profileForm.linkedin.trim(),
         website: profileForm.website.trim(),
@@ -337,16 +351,13 @@ const ShopProfile = () => {
     }
   };
 
-  // Current display data with fallback
-  const displayName = profile?.user?.name || profile?.shopName || 'Name Last-name';
-  const displayHeadline =
-    profile?.headline ||
-    'Full-Stack Developer | UI/UX Designer | Server Manager | Tech Counsultant';
+  // Current display data (no fake defaults)
+  const displayName = profile?.user?.name || profile?.shopName || 'Seller';
+  const displayHeadline = profile?.headline || '';
   const displayCompanyName = profile?.shopName || 'Company Name';
-  const activeSkills =
-    profile?.skills && profile.skills.length > 0 ? profile.skills : DEFAULT_SKILLS;
-  const avatarSrc = profile?.logo?.url || profile?.user?.avatar?.url || defaultSellerAvatar;
-  const bannerSrc = profile?.banner?.url || defaultBannerCover;
+  const activeSkills = Array.isArray(profile?.skills) ? profile.skills : [];
+  const avatarSrc = profile?.logo?.url || profile?.user?.avatar?.url || null;
+  const bannerSrc = profile?.banner?.url || null;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16 px-3 sm:px-6">
@@ -380,48 +391,67 @@ const ShopProfile = () => {
       )}
 
       {/* ══════════════════════════════════════════════════════════════
-          HERO PROFILE & BANNER CARD (MATCHING USER REFERENCE DESIGN)
+          HERO PROFILE & BANNER CARD
       ══════════════════════════════════════════════════════════════ */}
       <div className="bg-white rounded-2xl border border-gray-200/80 shadow-md overflow-hidden transition-all">
         {/* Banner Section */}
-        <div className="relative w-full h-48 sm:h-64 md:h-72 bg-slate-950 overflow-hidden group">
-          <img
-            src={bannerSrc}
-            alt="Store Cover Banner"
-            className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.01]"
-          />
-
-          {/* Slogan and Tech Badges overlay if no custom uploaded banner image */}
-          {!profile?.banner?.url && (
-            <div className="absolute inset-0 bg-radial-at-c from-transparent via-black/20 to-black/60 pointer-events-none" />
+        <div className="relative w-full h-48 sm:h-64 md:h-72 bg-slate-900 overflow-hidden group">
+          {bannerSrc ? (
+            <img
+              src={bannerSrc}
+              alt="Store Cover Banner"
+              className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.01]"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 relative flex items-center justify-center">
+              <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
+              <div className="text-center text-slate-400 z-10 select-none px-4">
+                <svg className="w-10 h-10 mx-auto text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-xs font-medium text-slate-400">No cover banner uploaded</span>
+              </div>
+            </div>
           )}
 
-          {/* Change Banner Button Overlay */}
-          <button
-            type="button"
-            onClick={() => bannerInputRef.current?.click()}
-            disabled={uploadingBanner}
-            className="absolute top-3.5 right-3.5 bg-black/60 hover:bg-black/85 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 backdrop-blur-xs border border-white/20 transition-all cursor-pointer shadow-md disabled:opacity-50"
-            title="Change cover banner"
-          >
-            {uploadingBanner ? (
-              <>
-                <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                <span>Uploading...</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span>Change Banner</span>
-              </>
+          {/* Banner Action Buttons Overlay */}
+          <div className="absolute top-3.5 right-3.5 flex items-center gap-2">
+            {bannerSrc && (
+              <button
+                type="button"
+                onClick={handleRemoveBanner}
+                className="bg-black/60 hover:bg-rose-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1 backdrop-blur-xs border border-white/20 transition-all cursor-pointer shadow-md"
+                title="Remove banner"
+              >
+                ✕ <span className="hidden sm:inline">Remove</span>
+              </button>
             )}
-          </button>
+            <button
+              type="button"
+              onClick={() => bannerInputRef.current?.click()}
+              disabled={uploadingBanner}
+              className="bg-black/60 hover:bg-black/85 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 backdrop-blur-xs border border-white/20 transition-all cursor-pointer shadow-md disabled:opacity-50"
+              title="Upload or change cover banner"
+            >
+              {uploadingBanner ? (
+                <>
+                  <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span>Uploading...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>{bannerSrc ? 'Change Banner' : 'Add Banner'}</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Profile Details Bar Below Banner */}
@@ -432,11 +462,17 @@ const ShopProfile = () => {
               {/* Overlapping Avatar */}
               <div className="relative -mt-16 sm:-mt-20 shrink-0 group">
                 <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full ring-4 ring-white shadow-xl overflow-hidden bg-slate-900 relative">
-                  <img
-                    src={avatarSrc}
-                    alt={displayName}
-                    className="w-full h-full object-cover"
-                  />
+                  {avatarSrc ? (
+                    <img
+                      src={avatarSrc}
+                      alt={displayName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-slate-700 via-indigo-900 to-slate-950 text-white flex items-center justify-center font-bold text-3xl sm:text-4xl select-none">
+                      {displayName ? displayName.trim().charAt(0).toUpperCase() : '👤'}
+                    </div>
+                  )}
 
                   {/* Uploading Spinner */}
                   {uploadingAvatar && (
@@ -455,7 +491,7 @@ const ShopProfile = () => {
                   onClick={() => avatarInputRef.current?.click()}
                   disabled={uploadingAvatar}
                   className="absolute bottom-1 right-1 bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-full ring-2 ring-white shadow-lg transition-transform group-hover:scale-110 cursor-pointer disabled:opacity-50"
-                  title="Change profile avatar"
+                  title={avatarSrc ? 'Change profile picture' : 'Upload profile picture'}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -471,7 +507,7 @@ const ShopProfile = () => {
                     {displayName}
                   </h2>
 
-                  {/* Verification Badge Button (Matching reference dashed outline style) */}
+                  {/* Verification Badge Button */}
                   {profile?.verificationStatus === 'approved' ? (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
                       <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
@@ -502,10 +538,20 @@ const ShopProfile = () => {
                   )}
                 </div>
 
-                {/* Headline / Roles */}
-                <p className="text-sm sm:text-base text-slate-600 font-medium leading-snug">
-                  {displayHeadline}
-                </p>
+                {/* Headline / Roles (only shows if seller has added one, otherwise prompts) */}
+                {displayHeadline ? (
+                  <p className="text-sm sm:text-base text-slate-600 font-medium leading-snug">
+                    {displayHeadline}
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="text-xs sm:text-sm text-slate-400 hover:text-indigo-600 italic cursor-pointer transition-colors block text-left"
+                  >
+                    + Add professional headline / roles
+                  </button>
+                )}
               </div>
             </div>
 
@@ -563,25 +609,29 @@ const ShopProfile = () => {
             </div>
           </div>
 
-          {/* Skills & Badges Chips */}
+          {/* Skills & Badges Chips (No fake default badges) */}
           <div className="mt-5 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-1">
               Tech & Services:
             </span>
-            {activeSkills.map((skill, index) => (
-              <span
-                key={index}
-                className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/70 transition-colors"
-              >
-                {skill}
-              </span>
-            ))}
+            {activeSkills.length > 0 ? (
+              activeSkills.map((skill, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/70 transition-colors"
+                >
+                  {skill}
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-slate-400 italic">None added yet</span>
+            )}
             <button
               type="button"
               onClick={() => setIsEditModalOpen(true)}
               className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 underline ml-1 cursor-pointer"
             >
-              + Edit Badges
+              {activeSkills.length > 0 ? '+ Edit Badges' : '+ Add Badges'}
             </button>
           </div>
         </div>
@@ -962,7 +1012,6 @@ const ShopProfile = () => {
 
           <Input
             label="Professional Headline / Roles"
-            required
             value={profileForm.headline}
             onChange={(e) => setProfileForm({ ...profileForm, headline: e.target.value })}
             placeholder="e.g. Full-Stack Developer | UI/UX Designer | Server Manager"
@@ -997,30 +1046,34 @@ const ShopProfile = () => {
                     handleAddSkill();
                   }
                 }}
-                placeholder="Add badge (e.g. Vue.js, Python, AWS)"
+                placeholder="Add badge (e.g. Vue.js, Python, AWS, Express)"
                 className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
               />
               <Button type="button" variant="secondary" size="sm" onClick={handleAddSkill}>
                 + Add
               </Button>
             </div>
-            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
-              {profileForm.skills.map((skill, idx) => (
-                <span
-                  key={idx}
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-white text-gray-800 border border-gray-300 shadow-2xs"
-                >
-                  {skill}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSkill(skill)}
-                    className="text-gray-400 hover:text-rose-600 font-bold ml-1 cursor-pointer"
+            {profileForm.skills.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
+                {profileForm.skills.map((skill, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-white text-gray-800 border border-gray-300 shadow-2xs"
                   >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
+                    {skill}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSkill(skill)}
+                      className="text-gray-400 hover:text-rose-600 font-bold ml-1 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic">No badges added yet.</p>
+            )}
           </div>
 
           {/* Social Links */}
@@ -1059,18 +1112,43 @@ const ShopProfile = () => {
           {/* Banner Slogan */}
           <div className="pt-2 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Banner Slogan"
+              label="Banner Slogan (Optional)"
               value={profileForm.bannerSlogan}
               onChange={(e) => setProfileForm({ ...profileForm, bannerSlogan: e.target.value })}
               placeholder="e.g. Building The Future with Code, Creativity, and Technology"
             />
             <Input
-              label="Banner Subtitle / Stars"
+              label="Banner Subtitle / Stars (Optional)"
               value={profileForm.bannerSubtitle}
               onChange={(e) => setProfileForm({ ...profileForm, bannerSubtitle: e.target.value })}
               placeholder="e.g. Innovate, Create ★★★★★"
             />
           </div>
+
+          {/* Remove Media Actions if Uploaded */}
+          {(avatarSrc || bannerSrc) && (
+            <div className="pt-2 border-t border-gray-100 flex items-center gap-3 text-xs">
+              <span className="font-semibold text-gray-500">Media Actions:</span>
+              {avatarSrc && (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  className="text-rose-600 hover:text-rose-800 font-medium underline cursor-pointer"
+                >
+                  Remove Avatar
+                </button>
+              )}
+              {bannerSrc && (
+                <button
+                  type="button"
+                  onClick={handleRemoveBanner}
+                  className="text-rose-600 hover:text-rose-800 font-medium underline cursor-pointer"
+                >
+                  Remove Cover Banner
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="pt-4 flex justify-end gap-2.5">
             <Button

@@ -171,13 +171,18 @@ const Home = () => {
           title: b.title,
           highlight: b.subtitle,
           bgImage: b.image?.url || b.imageUrl,
+          mobileImage: b.mobileImage?.url || b.mobileImageUrl || null,
           link: b.link || '/products',
           ctaText: b.ctaText || 'Shop Now',
           badgeText: b.badgeText,
+          bgColor: b.bgColor || '#0f172a',
+          textColor: b.textColor || '#ffffff',
+          showTextOverlay: b.showTextOverlay === true,
+          isCMS: true,
         }));
       }
     }
-    return HERO_SLIDES;
+    return HERO_SLIDES.map((s) => ({ ...s, showTextOverlay: true, bgColor: '#0f172a' }));
   }, [homepageData]);
 
   // Safely resolve the array of products from Redux state
@@ -337,51 +342,90 @@ const Home = () => {
   return (
     <div className="w-full bg-white text-slate-800 space-y-12 sm:space-y-16 pb-16">
       {/* ========================================================================= */}
-      {/* 1. HERO BANNER SECTION (FULL-WIDTH ATMOSPHERIC BANNER)                   */}
+      {/* 1. HERO BANNER SECTION (RESPONSIVE AUTO-RESIZING HERO SLIDER)            */}
       {/* ========================================================================= */}
-      <section className="relative w-full h-80 sm:h-100 lg:h-120 bg-slate-900 overflow-hidden">
+      <section
+        style={{
+          backgroundColor: heroSlides[currentSlide]?.bgColor || '#0f172a',
+        }}
+        className="relative w-full overflow-hidden transition-colors duration-500 min-h-[140px] sm:min-h-[200px] md:min-h-[260px] max-h-[580px]"
+      >
+        {/* Intrinsic sizer: sizes container automatically to natural banner image aspect ratio */}
+        {heroSlides[currentSlide]?.bgImage && (
+          <img
+            src={heroSlides[currentSlide].bgImage}
+            alt=""
+            className="w-full h-auto block invisible pointer-events-none select-none max-h-[580px] object-cover"
+            aria-hidden="true"
+          />
+        )}
+
         {heroSlides.map((slide, index) => {
           const isActive = index === currentSlide;
+          const showOverlay = slide.showTextOverlay === true;
+
           return (
             <div
               key={slide.id || index}
-              className={`absolute inset-0 transition-opacity duration-1000 ${
+              className={`absolute inset-0 w-full h-full transition-opacity duration-700 ${
                 isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
               }`}
             >
-              <img
-                src={slide.bgImage}
-                alt={slide.title}
-                className="w-full h-full object-cover object-center filter brightness-75 scale-105 transition-transform duration-10000"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
-
-              <div className="absolute inset-0 max-w-7xl mx-auto px-6 sm:px-12 flex flex-col justify-center text-white space-y-4">
-                {slide.badgeText && (
-                  <span className="w-fit px-3 py-1 rounded-full bg-emerald-500 text-white text-[11px] font-black uppercase tracking-wider shadow-sm">
-                    {slide.badgeText}
-                  </span>
+              <Link
+                to={slide.link || '/products'}
+                onClick={() => handleHeroBannerClick(slide)}
+                className="relative block w-full h-full cursor-pointer group"
+                tabIndex={isActive ? 0 : -1}
+              >
+                {slide.mobileImage ? (
+                  <picture>
+                    <source media="(max-width: 640px)" srcSet={slide.mobileImage} />
+                    <img
+                      src={slide.bgImage}
+                      alt={slide.title || 'Hero Banner'}
+                      className="w-full h-full object-cover object-center"
+                    />
+                  </picture>
+                ) : (
+                  <img
+                    src={slide.bgImage}
+                    alt={slide.title || 'Hero Banner'}
+                    className="w-full h-full object-cover object-center"
+                  />
                 )}
 
-                <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight max-w-xl">
-                  {slide.title} <br />
-                  {slide.highlight && (
-                    <span className="font-serif italic font-normal text-emerald-300">
-                      {slide.highlight}
-                    </span>
-                  )}
-                </h1>
+                {/* Dark gradient & typography overlay only when showOverlay is enabled */}
+                {showOverlay && (
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
 
-                <div className="pt-2">
-                  <Link
-                    to={slide.link || '/products'}
-                    onClick={() => handleHeroBannerClick(slide)}
-                    className="inline-block bg-white hover:bg-emerald-50 text-slate-900 hover:text-emerald-900 px-8 py-3 rounded-full font-bold text-xs sm:text-sm tracking-wide shadow-lg transition-all transform hover:-translate-y-0.5"
-                  >
-                    {slide.ctaText || 'Shop Now'}
-                  </Link>
-                </div>
-              </div>
+                    <div className="absolute inset-0 max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 flex flex-col justify-center text-white space-y-2 sm:space-y-4">
+                      {slide.badgeText && (
+                        <span className="w-fit px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-emerald-500 text-white text-[10px] sm:text-[11px] font-black uppercase tracking-wider shadow-sm">
+                          {slide.badgeText}
+                        </span>
+                      )}
+
+                      <h1 className="text-lg sm:text-3xl lg:text-5xl font-extrabold tracking-tight leading-tight max-w-xl">
+                        {slide.title} <br className="hidden sm:inline" />
+                        {slide.highlight && (
+                          <span className="font-serif italic font-normal text-emerald-300 ml-1 sm:ml-0">
+                            {slide.highlight}
+                          </span>
+                        )}
+                      </h1>
+
+                      <div className="pt-1 sm:pt-2">
+                        <span
+                          className="inline-block bg-white hover:bg-emerald-50 text-slate-900 hover:text-emerald-900 px-5 py-2 sm:px-8 sm:py-3 rounded-full font-bold text-xs sm:text-sm tracking-wide shadow-lg transition-all transform group-hover:-translate-y-0.5"
+                        >
+                          {slide.ctaText || 'Shop Now'}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </Link>
             </div>
           );
         })}
@@ -391,23 +435,50 @@ const Home = () => {
           <>
             <button
               type="button"
-              onClick={() =>
-                setCurrentSlide((prev) => (prev === 0 ? heroSlides.length - 1 : prev - 1))
-              }
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 flex items-center justify-center transition cursor-pointer shadow-md"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentSlide((prev) => (prev === 0 ? heroSlides.length - 1 : prev - 1));
+              }}
+              className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs flex items-center justify-center transition cursor-pointer shadow-md"
               aria-label="Previous Slide"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             <button
               type="button"
-              onClick={() => setCurrentSlide((prev) => (prev + 1) % heroSlides.length)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 flex items-center justify-center transition cursor-pointer shadow-md"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+              }}
+              className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs flex items-center justify-center transition cursor-pointer shadow-md"
               aria-label="Next Slide"
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </>
+        )}
+
+        {/* Carousel Dots Indicator */}
+        {heroSlides.length > 1 && (
+          <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-black/40 backdrop-blur-xs px-2.5 py-1 rounded-full">
+            {heroSlides.map((_, dotIdx) => (
+              <button
+                key={dotIdx}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCurrentSlide(dotIdx);
+                }}
+                className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                  dotIdx === currentSlide ? 'w-5 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/75'
+                }`}
+                aria-label={`Go to slide ${dotIdx + 1}`}
+              />
+            ))}
+          </div>
         )}
       </section>
 
@@ -451,7 +522,7 @@ const Home = () => {
                   <img
                     src={getBannerImage(promoTopBanners[0])}
                     alt={promoTopBanners[0].title || 'Promo Banner'}
-                    className="max-h-36 object-contain group-hover:scale-105 transition-transform duration-300 mix-blend-multiply"
+                    className="max-h-36 rounded-xl object-contain group-hover:scale-105 transition-transform duration-300"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
                 ) : featuredProduct1 && getProductImage(featuredProduct1) ? (
@@ -967,6 +1038,23 @@ const Home = () => {
               (() => {
                 const banner = promoMiddleBanners[0];
                 const bannerImg = getBannerImage(banner);
+                const showOverlay = banner.showTextOverlay === true;
+                if (!showOverlay && bannerImg) {
+                  return (
+                    <Link
+                      to={banner.link || '/products'}
+                      onClick={() => banner._id && dispatch(trackBannerClick(banner._id))}
+                      className="block w-full overflow-hidden rounded-2xl sm:rounded-3xl shadow-sm hover:opacity-95 transition group"
+                    >
+                      <img
+                        src={bannerImg}
+                        alt={banner.title}
+                        className="w-full h-auto object-cover max-h-[360px] group-hover:scale-[1.01] transition-transform duration-500"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    </Link>
+                  );
+                }
                 return (
                   <div
                     style={{
@@ -1348,6 +1436,24 @@ const Home = () => {
           <section className="space-y-4">
             {footerBanners.map((banner) => {
               const bannerImg = getBannerImage(banner);
+              const showOverlay = banner.showTextOverlay === true;
+              if (!showOverlay && bannerImg) {
+                return (
+                  <Link
+                    key={banner._id || banner.id}
+                    to={banner.link || '/products'}
+                    onClick={() => banner._id && dispatch(trackBannerClick(banner._id))}
+                    className="block w-full overflow-hidden rounded-2xl sm:rounded-3xl shadow-sm hover:opacity-95 transition group"
+                  >
+                    <img
+                      src={bannerImg}
+                      alt={banner.title}
+                      className="w-full h-auto object-cover max-h-[360px] group-hover:scale-[1.01] transition-transform duration-500"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </Link>
+                );
+              }
               return (
                 <div
                   key={banner._id || banner.id}
