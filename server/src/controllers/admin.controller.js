@@ -1,7 +1,8 @@
-// src/controllers/admin.controller.js
+const fs = require('fs');
 const mongoose = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
+const { uploadFile, deleteFile } = require('../config/cloudinary');
 const User = require('../models/User.model');
 const Seller = require('../models/Seller.model');
 const Product = require('../models/Product.model');
@@ -258,17 +259,72 @@ const createCategory = asyncHandler(async (req, res) => {
 
   // Check if name already exists
   const existing = await Category.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
-  if (existing) throw new ApiError(400, 'Category with this name already exists');
+  if (existing) {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    throw new ApiError(400, 'Category with this name already exists');
+  }
 
   // Auto-generate slug from name if not provided
   const finalSlug = slug || name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-  let categoryImage = {};
-  if (image) {
+  // Check if slug already exists
+  const existingSlug = await Category.findOne({ slug: finalSlug });
+  if (existingSlug) {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    throw new ApiError(400, 'Category with this slug already exists. Please choose a different name or slug.');
+  }
+
+  let parentId = null;
+  if (parent && parent !== 'null' && parent !== 'undefined' && parent !== '') {
+    if (!mongoose.Types.ObjectId.isValid(parent)) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+      throw new ApiError(400, 'Invalid parent category ID format');
+    }
+    parentId = parent;
+  }
+
+  let categoryImage = { url: '', publicId: '' };
+
+  // If image file uploaded via multipart
+  if (req.file) {
+    try {
+      const uploadRes = await uploadFile(req.file.path, {
+        folder: 'vectorx/categories',
+        transformation: [{ quality: 'auto', fetch_format: 'auto' }]
+      });
+      categoryImage = {
+        url: uploadRes.secure_url,
+        publicId: uploadRes.public_id
+      };
+    } catch (err) {
+      throw new ApiError(500, `Failed to upload category image: ${err.message}`);
+    } finally {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+    }
+  } else if (image) {
     if (typeof image === 'string' && image.trim()) {
       categoryImage = { url: image.trim(), publicId: '' };
     } else if (typeof image === 'object' && image.url) {
       categoryImage = { url: String(image.url).trim(), publicId: image.publicId || '' };
+    }
+  } else if (req.body.imageUrl && req.body.imageUrl.trim()) {
+    categoryImage = { url: req.body.imageUrl.trim(), publicId: '' };
+  }
+
+  let parsedSeo = {};
+  if (seo) {
+    if (typeof seo === 'string') {
+      try { parsedSeo = JSON.parse(seo); } catch (e) {}
+    } else if (typeof seo === 'object') {
+      parsedSeo = seo;
     }
   }
 
@@ -276,11 +332,11 @@ const createCategory = asyncHandler(async (req, res) => {
     name,
     slug: finalSlug,
     description,
-    parent: parent || null,
+    parent: parentId,
     image: categoryImage,
-    seo: seo || {},
-    sortOrder: sortOrder || 0,
-    isActive: isActive !== undefined ? isActive : true,
+    seo: parsedSeo,
+    sortOrder: sortOrder !== undefined ? Number(sortOrder) || 0 : 0,
+    isActive: isActive !== undefined ? (isActive === true || isActive === 'true') : true,
   });
 
   res.status(201).json({
@@ -292,23 +348,116 @@ const createCategory = asyncHandler(async (req, res) => {
 
 const updateCategory = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const updates = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    throw new ApiError(400, 'Invalid category ID format');
+  }
+
+  const updates = { ...req.body };
 
   const category = await Category.findById(id);
-  if (!category) throw new ApiError(404, 'Category not found');
+  if (!category) {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    throw new ApiError(404, 'Category not found');
+  }
 
   // Prevent duplicate name if changing name
   if (updates.name && updates.name !== category.name) {
-    const existing = await Category.findOne({ name: { $regex: new RegExp(`^${updates.name}$`, 'i') } });
-    if (existing) throw new ApiError(400, 'Category with this name already exists');
+    const existing = await Category.findOne({
+      name: { $regex: new RegExp(`^${updates.name}$`, 'i') },
+      _id: { $ne: id }
+    });
+    if (existing) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+      throw new ApiError(400, 'Category with this name already exists');
+    }
   }
 
-  if (updates.image !== undefined) {
-    if (typeof updates.image === 'string') {
-      updates.image = updates.image.trim() ? { url: updates.image.trim(), publicId: '' } : { url: '', publicId: '' };
-    } else if (typeof updates.image === 'object' && updates.image !== null) {
-      updates.image = { url: updates.image.url ? String(updates.image.url).trim() : '', publicId: updates.image.publicId || '' };
+  // Prevent duplicate slug if changing slug
+  if (updates.slug && updates.slug !== category.slug) {
+    const existingSlug = await Category.findOne({ slug: updates.slug, _id: { $ne: id } });
+    if (existingSlug) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+      throw new ApiError(400, 'Category with this slug already exists');
     }
+  }
+
+  // Handle uploaded image file
+  if (req.file) {
+    try {
+      const uploadRes = await uploadFile(req.file.path, {
+        folder: 'vectorx/categories',
+        transformation: [{ quality: 'auto', fetch_format: 'auto' }]
+      });
+
+      // Cleanup old image on Cloudinary if exists
+      if (category.image?.publicId) {
+        try {
+          await deleteFile(category.image.publicId);
+        } catch (e) {
+          // ignore cleanup error
+        }
+      }
+
+      updates.image = {
+        url: uploadRes.secure_url,
+        publicId: uploadRes.public_id
+      };
+    } catch (err) {
+      throw new ApiError(500, `Failed to upload category image: ${err.message}`);
+    } finally {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+    }
+  } else if (updates.image !== undefined) {
+    let newUrl = '';
+    let newPublicId = category.image?.publicId || '';
+    if (typeof updates.image === 'string') {
+      newUrl = updates.image.trim();
+      if (!newUrl) newPublicId = '';
+    } else if (typeof updates.image === 'object' && updates.image !== null) {
+      newUrl = updates.image.url ? String(updates.image.url).trim() : '';
+      newPublicId = updates.image.publicId !== undefined ? updates.image.publicId : newPublicId;
+      if (!newUrl) newPublicId = '';
+    }
+    updates.image = { url: newUrl, publicId: newPublicId };
+  } else if (req.body.imageUrl !== undefined) {
+    updates.image = req.body.imageUrl.trim() ? { url: req.body.imageUrl.trim(), publicId: '' } : { url: '', publicId: '' };
+  }
+
+  if (updates.parent !== undefined) {
+    const p = updates.parent;
+    if (p && p !== 'null' && p !== 'undefined' && p !== '') {
+      if (!mongoose.Types.ObjectId.isValid(p)) {
+        throw new ApiError(400, 'Invalid parent category ID format');
+      }
+      if (p.toString() === id.toString()) {
+        throw new ApiError(400, 'A category cannot be its own parent');
+      }
+      updates.parent = p;
+    } else {
+      updates.parent = null;
+    }
+  }
+
+  if (updates.isActive !== undefined) {
+    updates.isActive = updates.isActive === true || updates.isActive === 'true';
+  }
+  if (updates.sortOrder !== undefined) {
+    updates.sortOrder = Number(updates.sortOrder) || 0;
+  }
+  if (updates.seo && typeof updates.seo === 'string') {
+    try { updates.seo = JSON.parse(updates.seo); } catch (e) {}
   }
 
   Object.assign(category, updates);
@@ -324,6 +473,10 @@ const updateCategory = asyncHandler(async (req, res) => {
 const deleteCategory = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { force } = req.query; // ?force=true for cascade delete
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new ApiError(400, 'Invalid category ID format');
+  }
 
   const category = await Category.findById(id);
   if (!category) throw new ApiError(404, 'Category not found');
@@ -342,6 +495,15 @@ const deleteCategory = asyncHandler(async (req, res) => {
     }
     // Cascade delete subcategories
     await Category.deleteMany({ parent: id });
+  }
+
+  // Cleanup Cloudinary image if it exists
+  if (category.image?.publicId) {
+    try {
+      await deleteFile(category.image.publicId);
+    } catch (e) {
+      // ignore cleanup error
+    }
   }
 
   await Category.findByIdAndDelete(id);

@@ -47,6 +47,13 @@ import {
   ShieldCheck,
   RefreshCcw,
 } from 'lucide-react';
+import {
+  DEFAULT_PRESET_COLORS,
+  isValidCssColor,
+  toHexColor,
+  detectColorFormat,
+  getContrastingTextColor,
+} from '../../utils/colorUtils';
 
 const BANNER_SLOTS = [
   { id: 'hero_slider', label: 'Hero Slider Carousel', desc: 'Main full-width slider at the very top of homepage' },
@@ -63,13 +70,24 @@ const PRESET_LINKS = [
   { label: 'Special Deals', value: '/products?deals=true' },
 ];
 
-const PRESET_COLORS = [
-  { name: 'Emerald Deep', bg: '#124B38', text: '#ffffff' },
-  { name: 'Midnight Slate', bg: '#0f172a', text: '#ffffff' },
-  { name: 'Indigo Royal', bg: '#3730a3', text: '#ffffff' },
-  { name: 'Crimson Bold', bg: '#991b1b', text: '#ffffff' },
-  { name: 'Amber Warm', bg: '#78350f', text: '#ffffff' },
-];
+const LOCAL_STORAGE_CUSTOM_PRESETS_KEY = 'vectorx_cms_custom_presets';
+
+const getInitialAnnouncementPresets = () => {
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_CUSTOM_PRESETS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const defaultNames = new Set(DEFAULT_PRESET_COLORS.map((p) => p.name));
+        const customOnes = parsed.filter((p) => !defaultNames.has(p.name));
+        return [...DEFAULT_PRESET_COLORS, ...customOnes];
+      }
+    }
+  } catch (e) {
+    // Ignore storage parse error
+  }
+  return DEFAULT_PRESET_COLORS;
+};
 
 const CMS = () => {
   const dispatch = useDispatch();
@@ -113,7 +131,12 @@ const CMS = () => {
     badge: 'SPECIAL DEAL',
     bgColor: '#124B38',
     textColor: '#ffffff',
+    presets: getInitialAnnouncementPresets(),
   });
+
+  // Dynamic custom presets state
+  const [showAddPresetModal, setShowAddPresetModal] = useState(false);
+  const [newPresetTitle, setNewPresetTitle] = useState('');
 
   // Hero Carousel Settings State
   const [heroSettingsData, setHeroSettingsData] = useState({
@@ -147,6 +170,15 @@ const CMS = () => {
   useEffect(() => {
     if (cmsConfig) {
       if (cmsConfig.announcement) {
+        let loadedPresets = DEFAULT_PRESET_COLORS;
+        if (Array.isArray(cmsConfig.announcement.presets) && cmsConfig.announcement.presets.length > 0) {
+          const defaultNames = new Set(DEFAULT_PRESET_COLORS.map((p) => p.name));
+          const customOnes = cmsConfig.announcement.presets.filter((p) => !defaultNames.has(p.name));
+          loadedPresets = [...DEFAULT_PRESET_COLORS, ...customOnes];
+        } else {
+          loadedPresets = getInitialAnnouncementPresets();
+        }
+
         setAnnouncementData({
           enabled: cmsConfig.announcement.enabled ?? true,
           text: cmsConfig.announcement.text || '',
@@ -154,6 +186,7 @@ const CMS = () => {
           badge: cmsConfig.announcement.badge || 'PROMO',
           bgColor: cmsConfig.announcement.bgColor || '#124B38',
           textColor: cmsConfig.announcement.textColor || '#ffffff',
+          presets: loadedPresets,
         });
       }
       if (cmsConfig.heroSettings) {
@@ -379,6 +412,56 @@ const CMS = () => {
     } catch (err) {
       toast.error('Failed to update CMS config');
     }
+  };
+
+  // ----- Announcement Dynamic Custom Presets Handlers -----
+  const handleSaveCustomPreset = () => {
+    const trimmedTitle = newPresetTitle.trim() || `Custom (${announcementData.bgColor})`;
+    if (!isValidCssColor(announcementData.bgColor)) {
+      toast.error('Current background color is not a valid CSS color');
+      return;
+    }
+
+    const currentPresets = announcementData.presets || DEFAULT_PRESET_COLORS;
+    const exists = currentPresets.some(
+      (p) => p.name.toLowerCase() === trimmedTitle.toLowerCase()
+    );
+    if (exists) {
+      toast.error('A preset with this name already exists');
+      return;
+    }
+
+    const newPreset = {
+      name: trimmedTitle,
+      bg: announcementData.bgColor.trim(),
+      text: announcementData.textColor?.trim() || getContrastingTextColor(announcementData.bgColor),
+    };
+
+    const updatedPresets = [...currentPresets, newPreset];
+    setAnnouncementData((prev) => ({
+      ...prev,
+      presets: updatedPresets,
+    }));
+    try {
+      localStorage.setItem(LOCAL_STORAGE_CUSTOM_PRESETS_KEY, JSON.stringify(updatedPresets));
+    } catch (e) {}
+
+    setNewPresetTitle('');
+    setShowAddPresetModal(false);
+    toast.success(`Preset "${trimmedTitle}" saved!`);
+  };
+
+  const handleDeleteCustomPreset = (presetNameToDelete) => {
+    const currentPresets = announcementData.presets || DEFAULT_PRESET_COLORS;
+    const updatedPresets = currentPresets.filter((p) => p.name !== presetNameToDelete);
+    setAnnouncementData((prev) => ({
+      ...prev,
+      presets: updatedPresets,
+    }));
+    try {
+      localStorage.setItem(LOCAL_STORAGE_CUSTOM_PRESETS_KEY, JSON.stringify(updatedPresets));
+    } catch (e) {}
+    toast.info(`Preset "${presetNameToDelete}" removed`);
   };
 
   // ----- Logo & Brand Identity Handlers -----
@@ -934,7 +1017,7 @@ const CMS = () => {
                 >
                   <div className="flex items-center gap-2 truncate">
                     {announcementData.badge && (
-                      <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase">
+                      <span className="px-2 py-0.5 rounded-full bg-current/20 text-[10px] font-black uppercase">
                         {announcementData.badge}
                       </span>
                     )}
@@ -999,23 +1082,262 @@ const CMS = () => {
                 </div>
               </div>
 
-              {/* Color Theme Presets */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Color Theme Presets</label>
-                <div className="flex flex-wrap gap-2">
-                  {PRESET_COLORS.map((preset) => (
-                    <button
-                      key={preset.name}
-                      type="button"
-                      onClick={() => setAnnouncementData({ ...announcementData, bgColor: preset.bg, textColor: preset.text })}
-                      style={{ backgroundColor: preset.bg, color: preset.text }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                        announcementData.bgColor === preset.bg ? 'ring-2 ring-purple-600 shadow-sm' : 'border-transparent opacity-80'
+              {/* Color Theme Presets & Dynamic Color Customizer */}
+              <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                      <Palette className="w-4 h-4 text-purple-600" /> Color Theme Presets & Dynamic Customizer
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Select a preset theme or customize with RGB, Hex, or CSS color names (e.g., red, blue).
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                    <span className="text-[10px] text-slate-400 font-semibold">BG Format:</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        detectColorFormat(announcementData.bgColor) === 'Invalid'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-purple-100 text-purple-700 border border-purple-200'
                       }`}
                     >
-                      {preset.name}
+                      {detectColorFormat(announcementData.bgColor)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Color Theme Presets List */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">Theme Presets</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPresetModal(!showAddPresetModal)}
+                      className="text-[11px] font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Save Current as Preset
                     </button>
-                  ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {(announcementData.presets?.length ? announcementData.presets : DEFAULT_PRESET_COLORS).map((preset) => {
+                      const isSelected =
+                        announcementData.bgColor?.trim().toLowerCase() === preset.bg?.trim().toLowerCase();
+                      const isDefault = DEFAULT_PRESET_COLORS.some((d) => d.name === preset.name);
+
+                      return (
+                        <div key={preset.name} className="relative group inline-flex items-center">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAnnouncementData({
+                                ...announcementData,
+                                bgColor: preset.bg,
+                                textColor: preset.text || getContrastingTextColor(preset.bg),
+                              })
+                            }
+                            style={{ backgroundColor: preset.bg, color: preset.text || '#ffffff' }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                              isSelected
+                                ? 'ring-2 ring-purple-600 ring-offset-2 shadow-sm scale-102 border-transparent'
+                                : 'border-black/10 opacity-85 hover:opacity-100 hover:scale-102'
+                            }`}
+                          >
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-white/50 shrink-0"
+                              style={{ backgroundColor: preset.bg }}
+                            />
+                            <span>{preset.name}</span>
+                            {isSelected && <Check className="w-3 h-3 ml-0.5 shrink-0" />}
+                          </button>
+
+                          {/* Allow removing custom presets */}
+                          {!isDefault && (
+                            <button
+                              type="button"
+                              title={`Delete custom preset "${preset.name}"`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCustomPreset(preset.name);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 shadow-sm transition z-10 cursor-pointer"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Inline Save Preset Form */}
+                {showAddPresetModal && (
+                  <div className="p-3 bg-white rounded-xl border border-purple-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shadow-2xs">
+                    <input
+                      type="text"
+                      value={newPresetTitle}
+                      onChange={(e) => setNewPresetTitle(e.target.value)}
+                      placeholder="Preset name (e.g. Electric Blue, Ruby Deal)"
+                      className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveCustomPreset}
+                        className="flex-1 sm:flex-none px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                      >
+                        Save Preset
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddPresetModal(false)}
+                        className="px-2.5 py-1.5 text-slate-500 hover:text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Dynamic Color Controls (Background & Text) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-200">
+                  {/* Background Color Controller */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-700">
+                        Background Color
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-medium">Hex / RGB / Name</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* Interactive HTML5 Visual Color Swatch */}
+                      <div
+                        className="relative w-10 h-10 shrink-0 rounded-xl overflow-hidden border border-slate-300 shadow-2xs cursor-pointer group"
+                        title="Click to open color picker"
+                      >
+                        <input
+                          type="color"
+                          value={toHexColor(announcementData.bgColor, '#124b38')}
+                          onChange={(e) =>
+                            setAnnouncementData({
+                              ...announcementData,
+                              bgColor: e.target.value,
+                            })
+                          }
+                          className="absolute -top-3 -left-3 w-16 h-16 cursor-pointer border-0 p-0"
+                        />
+                      </div>
+
+                      {/* Direct Text Input (Accepts Hex, RGB, or named colors like 'red', 'blue') */}
+                      <input
+                        type="text"
+                        value={announcementData.bgColor}
+                        onChange={(e) =>
+                          setAnnouncementData({
+                            ...announcementData,
+                            bgColor: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. #124B38, rgb(18, 75, 56), or blue"
+                        className={`flex-1 rounded-xl border px-3 py-2 text-xs bg-white focus:outline-none focus:ring-2 font-mono ${
+                          isValidCssColor(announcementData.bgColor)
+                            ? 'border-slate-200 focus:ring-purple-500'
+                            : 'border-amber-300 bg-amber-50/20 focus:ring-amber-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Text & Link Color Controller */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-700">
+                        Text & Link Color
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const autoColor = getContrastingTextColor(announcementData.bgColor);
+                          setAnnouncementData({
+                            ...announcementData,
+                            textColor: autoColor,
+                          });
+                        }}
+                        className="text-[10px] font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1 cursor-pointer transition"
+                        title="Auto-calculate high contrast text color"
+                      >
+                        <Sparkles className="w-3 h-3" /> Auto Contrast
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* Interactive HTML5 Visual Color Swatch for Text */}
+                      <div
+                        className="relative w-10 h-10 shrink-0 rounded-xl overflow-hidden border border-slate-300 shadow-2xs cursor-pointer group"
+                        title="Click to open text color picker"
+                      >
+                        <input
+                          type="color"
+                          value={toHexColor(announcementData.textColor, '#ffffff')}
+                          onChange={(e) =>
+                            setAnnouncementData({
+                              ...announcementData,
+                              textColor: e.target.value,
+                            })
+                          }
+                          className="absolute -top-3 -left-3 w-16 h-16 cursor-pointer border-0 p-0"
+                        />
+                      </div>
+
+                      {/* Direct Text Input for Text Color */}
+                      <input
+                        type="text"
+                        value={announcementData.textColor}
+                        onChange={(e) =>
+                          setAnnouncementData({
+                            ...announcementData,
+                            textColor: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. #ffffff, rgb(255, 255, 255), or white"
+                        className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                      />
+                    </div>
+
+                    {/* Quick Contrast Switches */}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <span className="text-[10px] font-bold text-slate-400 mr-0.5">Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAnnouncementData({ ...announcementData, textColor: '#ffffff' })
+                        }
+                        className={`px-2 py-0.5 rounded-lg border text-[10px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                          announcementData.textColor?.toLowerCase() === '#ffffff'
+                            ? 'border-purple-500 bg-purple-50 text-purple-700'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-white border border-slate-300" /> White
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAnnouncementData({ ...announcementData, textColor: '#0f172a' })
+                        }
+                        className={`px-2 py-0.5 rounded-lg border text-[10px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                          announcementData.textColor?.toLowerCase() === '#0f172a'
+                            ? 'border-purple-500 bg-purple-50 text-purple-700'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-slate-900" /> Dark Slate
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1089,7 +1411,7 @@ const CMS = () => {
                   >
                     <div className="flex items-center gap-2">
                       {announcementData.badge && (
-                        <span className="px-1.5 py-0.2 rounded bg-white/20 text-[9px] font-bold">
+                        <span className="px-1.5 py-0.2 rounded bg-current/20 text-[9px] font-bold">
                           {announcementData.badge}
                         </span>
                       )}

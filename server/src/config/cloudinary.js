@@ -23,12 +23,24 @@ cloudinary.config({
  */
 const uploadFile = async (filePath, options = {}) => {
   try {
+    const isSvg = typeof filePath === 'string' && (filePath.toLowerCase().endsWith('.svg') || filePath.toLowerCase().includes('.svg?'));
+
     const uploadOptions = {
       folder: options.folder || 'vectorx',
-      resource_type: 'auto',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'],
+      resource_type: isSvg ? 'image' : (options.resource_type || 'auto'),
       ...options
     };
+
+    // Remove allowed_formats because Cloudinary throws 'Raw file format svg not allowed'
+    // when 'svg' is evaluated in allowed_formats.
+    // File extensions and MIME types are already validated by multer imageFilter.
+    delete uploadOptions.allowed_formats;
+
+    // For SVG files, remove rasterizing transformations (like fetch_format: 'auto')
+    // so SVG remains a crisp, vector SVG on Cloudinary.
+    if (isSvg && uploadOptions.transformation) {
+      delete uploadOptions.transformation;
+    }
 
     // If it's a base64 string or URL, upload directly
     if (filePath.startsWith('data:') || filePath.startsWith('http')) {
@@ -45,7 +57,7 @@ const uploadFile = async (filePath, options = {}) => {
     throw new ApiError(400, 'Invalid file path or format');
   } catch (error) {
     console.error('Cloudinary upload error:', error);
-    throw new ApiError(500, 'Failed to upload file to Cloudinary');
+    throw new ApiError(error.http_code || error.statusCode || 500, error.message || 'Failed to upload file to Cloudinary');
   }
 };
 

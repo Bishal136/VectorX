@@ -65,6 +65,21 @@ const getCategoryImage = (cat) => {
   return null;
 };
 
+// Safe Banner Image resolution
+const getBannerImage = (banner) => {
+  if (!banner) return '';
+  if (banner.image && typeof banner.image.url === 'string' && banner.image.url.trim()) {
+    return banner.image.url.trim();
+  }
+  if (typeof banner.image === 'string' && banner.image.trim()) {
+    return banner.image.trim();
+  }
+  if (typeof banner.imageUrl === 'string' && banner.imageUrl.trim()) {
+    return banner.imageUrl.trim();
+  }
+  return '';
+};
+
 // Hero Slider Data
 const HERO_SLIDES = [
   {
@@ -281,7 +296,15 @@ const Home = () => {
   const promoTopBanners = useMemo(() => {
     const list = homepageData?.banners?.promo_top;
     if (Array.isArray(list)) {
-      return list.filter((b) => b && (b.image?.url || b.imageUrl));
+      return list.filter((b) => b && (getBannerImage(b) || b.title));
+    }
+    return [];
+  }, [homepageData]);
+
+  const promoMiddleBanners = useMemo(() => {
+    const list = homepageData?.banners?.promo_middle;
+    if (Array.isArray(list)) {
+      return list.filter((b) => b && (getBannerImage(b) || b.title));
     }
     return [];
   }, [homepageData]);
@@ -289,9 +312,17 @@ const Home = () => {
   const flashSaleBanner = useMemo(() => {
     const list = homepageData?.banners?.flash_sale;
     if (Array.isArray(list) && list.length > 0) {
-      return list.find((b) => b && (b.image?.url || b.imageUrl)) || null;
+      return list.find((b) => b && (getBannerImage(b) || b.title)) || null;
     }
     return null;
+  }, [homepageData]);
+
+  const footerBanners = useMemo(() => {
+    const list = homepageData?.banners?.footer_banner;
+    if (Array.isArray(list)) {
+      return list.filter((b) => b && (getBannerImage(b) || b.title));
+    }
+    return [];
   }, [homepageData]);
 
   // Top Products for Promo Cards (no hardcoded category filter)
@@ -388,20 +419,37 @@ const Home = () => {
           {/* Top 3-block row */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             {/* Block 1: Admin Promo Banner or Featured Product (4 cols) */}
-            <div className="lg:col-span-4 bg-slate-100 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between min-h-[260px] border border-slate-200/80 shadow-2xs group">
+            <div
+              style={{
+                backgroundColor: promoTopBanners[0]?.bgColor || undefined,
+                color: promoTopBanners[0]?.textColor || undefined,
+              }}
+              className="lg:col-span-4 bg-slate-100 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between min-h-[260px] border border-slate-200/80 shadow-2xs group"
+            >
               <div>
-                <h3 className="font-bold text-base text-slate-900 leading-snug">
+                {promoTopBanners[0]?.badgeText && (
+                  <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-black/10 text-current mb-1 inline-block">
+                    {promoTopBanners[0].badgeText}
+                  </span>
+                )}
+                <h3
+                  className="font-bold text-base text-slate-900 leading-snug"
+                  style={{ color: promoTopBanners[0]?.textColor || undefined }}
+                >
                   {promoTopBanners[0]?.title || (featuredProduct1 ? 'Featured Selection' : 'Discover Great Deals')}
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <p
+                  className="text-[11px] text-slate-500 mt-0.5"
+                  style={{ color: promoTopBanners[0]?.textColor ? `${promoTopBanners[0].textColor}cc` : undefined }}
+                >
                   {promoTopBanners[0]?.subtitle || (featuredProduct1 ? featuredProduct1.name : 'Explore our verified products and daily offers')}
                 </p>
               </div>
 
               <div className="my-auto flex justify-center items-center py-2">
-                {promoTopBanners[0]?.image?.url ? (
+                {getBannerImage(promoTopBanners[0]) ? (
                   <img
-                    src={promoTopBanners[0].image.url}
+                    src={getBannerImage(promoTopBanners[0])}
                     alt={promoTopBanners[0].title || 'Promo Banner'}
                     className="max-h-36 object-contain group-hover:scale-105 transition-transform duration-300 mix-blend-multiply"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -425,6 +473,7 @@ const Home = () => {
                   promoTopBanners[0]?.link ||
                   (featuredProduct1 ? `/products/${featuredProduct1.slug || featuredProduct1._id}` : '/products')
                 }
+                onClick={() => promoTopBanners[0]?._id && dispatch(trackBannerClick(promoTopBanners[0]._id))}
                 className="inline-block bg-white hover:bg-slate-900 hover:text-white text-slate-900 px-5 py-2 rounded-full font-bold text-xs text-center transition shadow-2xs w-fit"
               >
                 {promoTopBanners[0]?.ctaText || (featuredProduct1 ? `Shop Now • ৳${featuredProduct1.price}` : 'Browse Store')}
@@ -486,35 +535,77 @@ const Home = () => {
             <div className="lg:col-span-4 flex flex-col gap-3 justify-between">
               {/* Top 2 mini promos */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-900 text-white rounded-xl p-3 flex flex-col justify-between min-h-[110px] relative overflow-hidden shadow-2xs">
-                  <div>
-                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-rose-400">
+                <div
+                  style={{
+                    backgroundColor: promoTopBanners[1]?.bgColor || undefined,
+                    color: promoTopBanners[1]?.textColor || undefined,
+                  }}
+                  className="bg-slate-900 text-white rounded-xl p-3 flex flex-col justify-between min-h-[120px] relative overflow-hidden shadow-2xs group"
+                >
+                  {getBannerImage(promoTopBanners[1]) && (
+                    <img
+                      src={getBannerImage(promoTopBanners[1])}
+                      alt={promoTopBanners[1]?.title || 'Promo'}
+                      className="absolute right-1 bottom-1 w-16 h-16 object-contain opacity-40 group-hover:opacity-60 transition pointer-events-none"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
+                  <div className="relative z-10">
+                    <span
+                      style={{ color: promoTopBanners[1]?.textColor ? `${promoTopBanners[1].textColor}ee` : undefined }}
+                      className="text-[9px] font-extrabold uppercase tracking-wider text-rose-400"
+                    >
                       {promoTopBanners[1]?.badgeText || 'Special Deals'}
                     </span>
-                    <h4 className="text-xs font-bold text-white leading-tight">
+                    <h4
+                      style={{ color: promoTopBanners[1]?.textColor || undefined }}
+                      className="text-xs font-bold text-white leading-tight line-clamp-2"
+                    >
                       {promoTopBanners[1]?.title || 'Exclusive Offers'}
                     </h4>
                   </div>
                   <Link
                     to={promoTopBanners[1]?.link || '/products?deals=true'}
-                    className="text-xs font-black text-amber-400 hover:underline"
+                    onClick={() => promoTopBanners[1]?._id && dispatch(trackBannerClick(promoTopBanners[1]._id))}
+                    className="text-xs font-black text-amber-400 hover:underline relative z-10 inline-flex items-center gap-1"
                   >
                     {promoTopBanners[1]?.ctaText || 'Explore Deals →'}
                   </Link>
                 </div>
 
-                <div className="bg-gradient-to-br from-indigo-900 to-purple-900 text-white rounded-xl p-3 flex flex-col justify-between min-h-[110px] relative overflow-hidden shadow-2xs">
-                  <div>
-                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-cyan-300">
+                <div
+                  style={{
+                    backgroundColor: promoTopBanners[2]?.bgColor || undefined,
+                    color: promoTopBanners[2]?.textColor || undefined,
+                  }}
+                  className="bg-gradient-to-br from-indigo-900 to-purple-900 text-white rounded-xl p-3 flex flex-col justify-between min-h-[120px] relative overflow-hidden shadow-2xs group"
+                >
+                  {getBannerImage(promoTopBanners[2]) && (
+                    <img
+                      src={getBannerImage(promoTopBanners[2])}
+                      alt={promoTopBanners[2]?.title || 'Promo'}
+                      className="absolute right-1 bottom-1 w-16 h-16 object-contain opacity-40 group-hover:opacity-60 transition pointer-events-none"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
+                  <div className="relative z-10">
+                    <span
+                      style={{ color: promoTopBanners[2]?.textColor ? `${promoTopBanners[2].textColor}ee` : undefined }}
+                      className="text-[9px] font-extrabold uppercase tracking-wider text-cyan-300"
+                    >
                       {promoTopBanners[2]?.badgeText || 'Verified'}
                     </span>
-                    <h4 className="text-xs font-bold text-white leading-tight">
+                    <h4
+                      style={{ color: promoTopBanners[2]?.textColor || undefined }}
+                      className="text-xs font-bold text-white leading-tight line-clamp-2"
+                    >
                       {promoTopBanners[2]?.title || 'Fast Delivery'}
                     </h4>
                   </div>
                   <Link
                     to={promoTopBanners[2]?.link || '/products'}
-                    className="text-[10px] font-bold text-cyan-300 hover:underline"
+                    onClick={() => promoTopBanners[2]?._id && dispatch(trackBannerClick(promoTopBanners[2]._id))}
+                    className="text-[10px] font-bold text-cyan-300 hover:underline relative z-10 inline-flex items-center gap-1"
                   >
                     {promoTopBanners[2]?.ctaText || 'Shop Now →'}
                   </Link>
@@ -868,6 +959,123 @@ const Home = () => {
         </section>
 
         {/* ========================================================================= */}
+        {/* PROMOTIONAL MIDDLE STRIPS (CMS ADMIN CONNECTED)                           */}
+        {/* ========================================================================= */}
+        {promoMiddleBanners.length > 0 && (
+          <section className="space-y-4">
+            {promoMiddleBanners.length === 1 ? (
+              (() => {
+                const banner = promoMiddleBanners[0];
+                const bannerImg = getBannerImage(banner);
+                return (
+                  <div
+                    style={{
+                      backgroundColor: banner.bgColor || '#0f172a',
+                      color: banner.textColor || '#ffffff',
+                    }}
+                    className="rounded-3xl p-6 sm:p-10 relative overflow-hidden shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 group"
+                  >
+                    <div className="max-w-xl space-y-3 relative z-10">
+                      {banner.badgeText && (
+                        <span className="inline-block text-[10px] sm:text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-current backdrop-blur-xs">
+                          {banner.badgeText}
+                        </span>
+                      )}
+                      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black leading-tight tracking-tight">
+                        {banner.title}
+                      </h3>
+                      {banner.subtitle && (
+                        <p className="text-sm sm:text-base font-medium opacity-90 leading-relaxed">
+                          {banner.subtitle}
+                        </p>
+                      )}
+                      {banner.description && (
+                        <p className="text-xs sm:text-sm opacity-75 line-clamp-2 max-w-lg leading-relaxed">
+                          {banner.description}
+                        </p>
+                      )}
+                      <div className="pt-2">
+                        <Link
+                          to={banner.link || '/products'}
+                          onClick={() => banner._id && dispatch(trackBannerClick(banner._id))}
+                          className="inline-block bg-white text-slate-950 hover:bg-emerald-500 hover:text-white px-7 py-3 rounded-full font-bold text-xs sm:text-sm tracking-wide transition shadow-md"
+                        >
+                          {banner.ctaText || 'Shop Now'}
+                        </Link>
+                      </div>
+                    </div>
+
+                    {bannerImg && (
+                      <div className="relative z-10 shrink-0 md:max-w-md flex justify-center items-center">
+                        <img
+                          src={bannerImg}
+                          alt={banner.title}
+                          className="max-h-52 sm:max-h-64 object-contain group-hover:scale-105 transition-transform duration-500 filter drop-shadow-xl"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
+            ) : (
+              <div className={`grid grid-cols-1 ${promoMiddleBanners.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4`}>
+                {promoMiddleBanners.map((banner) => {
+                  const bannerImg = getBannerImage(banner);
+                  return (
+                    <div
+                      key={banner._id || banner.id}
+                      style={{
+                        backgroundColor: banner.bgColor || '#0f172a',
+                        color: banner.textColor || '#ffffff',
+                      }}
+                      className="rounded-2xl p-5 sm:p-6 relative overflow-hidden shadow-2xs flex flex-col justify-between min-h-[220px] group"
+                    >
+                      <div className="space-y-2 relative z-10">
+                        {banner.badgeText && (
+                          <span className="inline-block text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-current backdrop-blur-xs">
+                            {banner.badgeText}
+                          </span>
+                        )}
+                        <h4 className="text-lg sm:text-xl font-black leading-snug">
+                          {banner.title}
+                        </h4>
+                        {banner.subtitle && (
+                          <p className="text-xs opacity-85 line-clamp-2">
+                            {banner.subtitle}
+                          </p>
+                        )}
+                      </div>
+
+                      {bannerImg && (
+                        <div className="my-3 flex justify-center relative z-10">
+                          <img
+                            src={bannerImg}
+                            alt={banner.title}
+                            className="max-h-28 object-contain group-hover:scale-105 transition-transform duration-300 filter drop-shadow-md"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        </div>
+                      )}
+
+                      <div className="pt-2 relative z-10">
+                        <Link
+                          to={banner.link || '/products'}
+                          onClick={() => banner._id && dispatch(trackBannerClick(banner._id))}
+                          className="inline-block bg-white text-slate-950 hover:bg-emerald-500 hover:text-white px-5 py-2 rounded-full font-bold text-xs transition shadow-2xs"
+                        >
+                          {banner.ctaText || 'Shop Now'}
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ========================================================================= */}
         {/* 5. BEST SELLING PRODUCT PROMOTIONAL GRID (FROM BACKEND)                  */}
         {/* ========================================================================= */}
         <section className="space-y-6">
@@ -942,23 +1150,38 @@ const Home = () => {
             </div>
 
             {/* Right 4 cols: Admin Flash Sale Banner or Exclusive Promotion */}
-            <div className="md:col-span-4 bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white rounded-2xl p-6 flex flex-col justify-between min-h-[340px] shadow-md relative overflow-hidden">
+            <div
+              style={{
+                backgroundColor: flashSaleBanner?.bgColor || undefined,
+                color: flashSaleBanner?.textColor || undefined,
+              }}
+              className="md:col-span-4 bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white rounded-2xl p-6 flex flex-col justify-between min-h-[340px] shadow-md relative overflow-hidden"
+            >
               <div className="space-y-2 relative z-10">
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-300 bg-black/40 px-2.5 py-0.5 rounded-full backdrop-blur-xs">
+                <span
+                  style={{ color: flashSaleBanner?.textColor ? `${flashSaleBanner.textColor}ee` : undefined }}
+                  className="text-xs font-black uppercase tracking-wider text-emerald-300 bg-black/40 px-2.5 py-0.5 rounded-full backdrop-blur-xs"
+                >
                   {flashSaleBanner?.badgeText || 'SPECIAL OFFER'}
                 </span>
-                <h3 className="text-2xl font-black leading-tight text-white">
+                <h3
+                  className="text-2xl font-black leading-tight"
+                  style={{ color: flashSaleBanner?.textColor || undefined }}
+                >
                   {flashSaleBanner?.title || 'EXCLUSIVE DEALS & VERIFIED PRODUCTS'}
                 </h3>
-                <p className="text-xs text-emerald-100/80 font-medium leading-relaxed">
+                <p
+                  className="text-xs text-emerald-100/80 font-medium leading-relaxed"
+                  style={{ color: flashSaleBanner?.textColor ? `${flashSaleBanner.textColor}cc` : undefined }}
+                >
                   {flashSaleBanner?.subtitle || '100% Guaranteed authentic quality with doorstep express delivery.'}
                 </p>
               </div>
 
               <div className="my-auto flex justify-center py-4 relative z-10">
-                {flashSaleBanner?.image?.url ? (
+                {getBannerImage(flashSaleBanner) ? (
                   <img
-                    src={flashSaleBanner.image.url}
+                    src={getBannerImage(flashSaleBanner)}
                     alt={flashSaleBanner.title || 'Flash Sale'}
                     className="max-h-40 object-contain filter drop-shadow-lg"
                     onError={(e) => {
@@ -974,6 +1197,7 @@ const Home = () => {
 
               <Link
                 to={flashSaleBanner?.link || '/products?deals=true'}
+                onClick={() => flashSaleBanner?._id && dispatch(trackBannerClick(flashSaleBanner._id))}
                 className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-2.5 rounded-full text-xs font-bold text-center transition shadow-md relative z-10"
               >
                 {flashSaleBanner?.ctaText || 'Shop Now'}
@@ -1116,6 +1340,70 @@ const Home = () => {
             )}
           </div>
         </section>
+
+        {/* ========================================================================= */}
+        {/* FOOTER PROMO BANNER STRIP (CMS ADMIN CONNECTED)                           */}
+        {/* ========================================================================= */}
+        {footerBanners.length > 0 && (
+          <section className="space-y-4">
+            {footerBanners.map((banner) => {
+              const bannerImg = getBannerImage(banner);
+              return (
+                <div
+                  key={banner._id || banner.id}
+                  style={{
+                    backgroundColor: banner.bgColor || '#124B38',
+                    color: banner.textColor || '#ffffff',
+                  }}
+                  className="rounded-3xl p-6 sm:p-10 relative overflow-hidden shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 group"
+                >
+                  {/* Left Content */}
+                  <div className="max-w-xl space-y-3 relative z-10">
+                    {banner.badgeText && (
+                      <span className="inline-block text-[10px] sm:text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-current backdrop-blur-xs">
+                        {banner.badgeText}
+                      </span>
+                    )}
+                    <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black leading-tight tracking-tight">
+                      {banner.title}
+                    </h3>
+                    {banner.subtitle && (
+                      <p className="text-sm sm:text-base font-medium opacity-90 leading-relaxed">
+                        {banner.subtitle}
+                      </p>
+                    )}
+                    {banner.description && (
+                      <p className="text-xs sm:text-sm opacity-75 line-clamp-2 max-w-lg leading-relaxed">
+                        {banner.description}
+                      </p>
+                    )}
+                    <div className="pt-2">
+                      <Link
+                        to={banner.link || '/products'}
+                        onClick={() => banner._id && dispatch(trackBannerClick(banner._id))}
+                        className="inline-block bg-white text-slate-950 hover:bg-emerald-500 hover:text-white px-7 py-3 rounded-full font-bold text-xs sm:text-sm tracking-wide transition shadow-md"
+                      >
+                        {banner.ctaText || 'Shop Now'}
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* Right Image */}
+                  {bannerImg && (
+                    <div className="relative z-10 shrink-0 md:max-w-md flex justify-center items-center">
+                      <img
+                        src={bannerImg}
+                        alt={banner.title}
+                        className="max-h-48 sm:max-h-60 object-contain group-hover:scale-105 transition-transform duration-500 filter drop-shadow-xl"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        )}
 
         {/* ========================================================================= */}
         {/* 7. "OUR HAPPY CUSTOMERS" TESTIMONIALS SECTION                            */}

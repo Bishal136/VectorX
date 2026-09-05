@@ -6,7 +6,12 @@ const Product = require('../models/Product.model');
 const { Order, ORDER_STATUS, PAYMENT_STATUS } = require('../models/Order.model');
 const User = require('../models/User.model');
 const productService = require('../services/product.service');
-const { uploadProductImage: uploadProdImg, uploadProductVideo: uploadProdVid } = require('../config/cloudinary');
+const {
+  uploadProductImage: uploadProdImg,
+  uploadProductVideo: uploadProdVid,
+  uploadFile,
+  uploadShopLogo
+} = require('../config/cloudinary');
 const fs = require('fs');
 
 /**
@@ -739,7 +744,7 @@ const getSellerProfile = asyncHandler(async (req, res) => {
 
   // Find seller profile
   const seller = await Seller.findOne({ user: userId })
-    .populate('user', 'name email phone isVerified isBlocked');
+    .populate('user', 'name email phone isVerified isBlocked avatar banner');
 
   if (!seller) {
     return res.status(404).json({
@@ -770,8 +775,28 @@ const updateSellerProfile = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Seller profile not found');
   }
 
-  // Only allow updating certain fields
-  const allowedUpdates = ['shopName', 'shopAddress', 'gstNumber', 'panNumber', 'bankDetails'];
+  // Update seller owner name on User model if provided
+  if (req.body.name || req.body.ownerName) {
+    const newName = (req.body.name || req.body.ownerName).trim();
+    if (newName) {
+      await User.findByIdAndUpdate(req.user.id, { name: newName });
+    }
+  }
+
+  // Allowed fields for seller profile update
+  const allowedUpdates = [
+    'shopName',
+    'headline',
+    'bio',
+    'skills',
+    'socialLinks',
+    'banner',
+    'logo',
+    'shopAddress',
+    'gstNumber',
+    'panNumber',
+    'bankDetails'
+  ];
   const updates = {};
 
   allowedUpdates.forEach(field => {
@@ -807,7 +832,7 @@ const updateSellerProfile = asyncHandler(async (req, res) => {
     seller._id,
     updates,
     { new: true, runValidators: true }
-  ).populate('user', 'name email phone isVerified');
+  ).populate('user', 'name email phone isVerified avatar banner');
 
   // If location coordinates changed, sync all products of this seller
   if (updates.location) {
@@ -819,7 +844,149 @@ const updateSellerProfile = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    data: updatedSeller
+    data: updatedSeller,
+    message: 'Profile updated successfully'
+  });
+});
+
+/**
+ * Upload seller shop logo / avatar
+ * POST /api/sellers/upload/logo
+ */
+const uploadSellerLogo = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'No image file provided');
+  }
+
+  const seller = await Seller.findOne({ user: req.user.id });
+  if (!seller) {
+    throw new ApiError(404, 'Seller profile not found');
+  }
+
+  const result = await uploadShopLogo(req.file.path, seller._id);
+
+  if (req.file.path && fs.existsSync(req.file.path)) {
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  seller.logo = {
+    url: result.url,
+    publicId: result.publicId
+  };
+  await seller.save();
+
+  await User.findByIdAndUpdate(req.user.id, {
+    avatar: { url: result.url, publicId: result.publicId }
+  });
+
+  const populatedSeller = await Seller.findById(seller._id)
+    .populate('user', 'name email phone isVerified avatar banner');
+
+  res.json({
+    success: true,
+    data: {
+      seller: populatedSeller,
+      logo: seller.logo,
+      url: result.url,
+      publicId: result.publicId
+    },
+    message: 'Shop avatar/logo uploaded successfully'
+  });
+});
+
+/**
+ * Upload seller shop banner
+ * POST /api/sellers/upload/banner
+ */
+const uploadSellerBanner = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'No image file provided');
+  }
+
+  const seller = await Seller.findOne({ user: req.user.id });
+  if (!seller) {
+    throw new ApiError(404, 'Seller profile not found');
+  }
+
+  const result = await uploadFile(req.file.path, {
+    folder: `vectorx/sellers/${seller._id}/banner`,
+    transformation: [
+      { width: 1500, height: 500, crop: 'fill', quality: 'auto' },
+      { fetch_format: 'auto' }
+    ]
+  });
+
+  if (req.file.path && fs.existsSync(req.file.path)) {
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  seller.banner = {
+    url: result.secure_url,
+    publicId: result.public_id,
+    slogan: seller.banner?.slogan || 'Building The Future with Code, Creativity, and Technology',
+    subtitle: seller.banner?.subtitle || 'Innovate, Create ★★★★★'
+  };
+  await seller.save();
+
+  await User.findByIdAndUpdate(req.user.id, {
+    banner: { url: result.secure_url, publicId: result.public_id }
+  });
+
+  const populatedSeller = await Seller.findById(seller._id)
+    .populate('user', 'name email phone isVerified avatar banner');
+
+  res.json({
+    success: true,
+    data: {
+      seller: populatedSeller,
+      banner: seller.banner,
+      url: result.secure_url,
+      publicId: result.public_id
+    },
+    message: 'Shop banner uploaded successfully'
+  });
+});
+
+/**
+ * Request verification badge
+ * POST /api/sellers/request-verification
+ */
+const requestVerification = asyncHandler(async (req, res) => {
+  const seller = await Seller.findOne({ user: req.user.id });
+  if (!seller) {
+    throw new ApiError(404, 'Seller profile not found');
+  }
+
+  if (seller.verificationStatus === 'approved') {
+    return res.json({
+      success: true,
+      data: seller,
+      message: 'Your store is already verified!'
+    });
+  }
+
+  const { gstNumber, panNumber } = req.body || {};
+  if (gstNumber) seller.gstNumber = gstNumber.trim();
+  if (panNumber) seller.panNumber = panNumber.trim();
+  seller.verificationStatus = 'pending';
+  seller.rejectionReason = undefined;
+
+  await seller.save();
+  const populatedSeller = await Seller.findById(seller._id)
+    .populate('user', 'name email phone isVerified avatar banner');
+
+  res.json({
+    success: true,
+    data: populatedSeller,
+    message: 'Verification badge request submitted successfully! VectorX staff will review your profile.'
   });
 });
 
@@ -1220,6 +1387,9 @@ module.exports = {
   issueOrderRefund,
   getSellerProfile,
   updateSellerProfile,
+  uploadSellerLogo,
+  uploadSellerBanner,
+  requestVerification,
   getSellerEarnings,
   uploadProductImage,
   uploadProductVideo,

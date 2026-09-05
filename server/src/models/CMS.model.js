@@ -27,7 +27,14 @@ const cmsSchema = new mongoose.Schema(
       textColor: {
         type: String,
         default: '#ffffff'
-      }
+      },
+      presets: [
+        {
+          name: { type: String, trim: true },
+          bg: { type: String, trim: true },
+          text: { type: String, trim: true, default: '#ffffff' }
+        }
+      ]
     },
     heroSettings: {
       autoPlayInterval: {

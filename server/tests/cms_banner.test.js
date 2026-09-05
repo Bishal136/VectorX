@@ -141,21 +141,28 @@ async function startSuite() {
     assert.ifError(error);
   });
 
-  runTest('updateCMSSchema validates announcement settings update', () => {
+  runTest('updateCMSSchema validates announcement settings update with presets and dynamic colors (RGB, Hex, named colors)', () => {
     const validCMS = {
       announcement: {
         enabled: true,
         text: '⚡ Free Shipping Weekend!',
-        bgColor: '#124B38',
-        textColor: '#ffffff'
+        bgColor: 'rgb(220, 38, 38)',
+        textColor: '#ffffff',
+        presets: [
+          { name: 'Red Vibrant', bg: 'rgb(220, 38, 38)', text: '#ffffff' },
+          { name: 'Ocean Blue', bg: '#2563eb', text: '#ffffff' },
+          { name: 'Forest Green', bg: 'green', text: '#ffffff' }
+        ]
       },
       heroSettings: {
         autoPlayInterval: 5000,
         showDots: true
       }
     };
-    const { error } = updateCMSSchema.validate(validCMS);
+    const { error, value } = updateCMSSchema.validate(validCMS);
     assert.ifError(error);
+    assert.strictEqual(value.announcement.presets.length, 3);
+    assert.strictEqual(value.announcement.bgColor, 'rgb(220, 38, 38)');
   });
 
   // ----------------------------------------------------

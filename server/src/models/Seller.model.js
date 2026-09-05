@@ -11,6 +11,40 @@ const sellerSchema = new mongoose.Schema({
     type: String, 
     required: true 
   },
+  headline: {
+    type: String,
+    default: 'Full-Stack Developer | UI/UX Designer | Server Manager | Tech Counsultant'
+  },
+  bio: {
+    type: String,
+    default: ''
+  },
+  skills: {
+    type: [String],
+    default: ['HTML', 'Wordpress', 'PHP', 'CSS', 'Node.js', 'React.js', 'Shopify Stores', 'JavaScript', 'CMS']
+  },
+  socialLinks: {
+    linkedin: { type: String, default: '' },
+    website: { type: String, default: '' },
+    github: { type: String, default: '' },
+    twitter: { type: String, default: '' }
+  },
+  banner: {
+    url: { type: String, default: null },
+    publicId: { type: String, default: null },
+    slogan: { 
+      type: String, 
+      default: 'Building The Future with Code, Creativity, and Technology' 
+    },
+    subtitle: { 
+      type: String, 
+      default: 'Innovate, Create ★★★★★' 
+    }
+  },
+  logo: {
+    url: { type: String, default: null },
+    publicId: { type: String, default: null }
+  },
   shopAddress: {
     line1: String,
     city: String,

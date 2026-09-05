@@ -64,7 +64,14 @@ const updateCMSSchema = Joi.object({
     link: Joi.string().trim().allow('').optional(),
     badge: Joi.string().trim().allow('').optional(),
     bgColor: Joi.string().trim().optional(),
-    textColor: Joi.string().trim().optional()
+    textColor: Joi.string().trim().optional(),
+    presets: Joi.array().items(
+      Joi.object({
+        name: Joi.string().trim().required(),
+        bg: Joi.string().trim().required(),
+        text: Joi.string().trim().default('#ffffff')
+      })
+    ).optional()
   }).optional(),
   heroSettings: Joi.object({
     autoPlayInterval: Joi.number().integer().min(1000).max(30000).optional(),

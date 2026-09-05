@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchCategories,
@@ -10,6 +10,7 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import Modal from '../../components/common/Modal';
 import { toast } from 'react-toastify';
+import { UploadCloud, Image as ImageIcon, Link as LinkIcon, X, CheckCircle2 } from 'lucide-react';
 
 const slugify = (text) =>
   text
@@ -34,6 +35,13 @@ const Categories = () => {
   const [forceDelete, setForceDelete] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Category image upload state
+  const [imageMode, setImageMode] = useState('upload'); // 'upload' | 'url'
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
+
   // Form state - simple category schema
   const [formData, setFormData] = useState({
     name: '',
@@ -51,6 +59,9 @@ const Categories = () => {
   const handleOpenAddModal = () => {
     setIsEditing(false);
     setSelectedCategory(null);
+    setImageMode('upload');
+    setSelectedFile(null);
+    setFilePreview('');
     setFormData({
       name: '',
       slug: '',
@@ -59,21 +70,75 @@ const Categories = () => {
       parent: '',
       isActive: true,
     });
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setModalOpen(true);
   };
 
   const handleOpenEditModal = (cat) => {
     setIsEditing(true);
     setSelectedCategory(cat);
+    const existingUrl = cat.image?.url || (typeof cat.image === 'string' ? cat.image : '') || '';
+    setImageMode('upload');
+    setSelectedFile(null);
+    setFilePreview(existingUrl);
     setFormData({
       name: cat.name || '',
       slug: cat.slug || '',
       description: cat.description || '',
-      image: cat.image?.url || (typeof cat.image === 'string' ? cat.image : '') || '',
+      image: existingUrl,
       parent: cat.parent?._id || cat.parent || '',
       isActive: cat.isActive !== false,
     });
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setModalOpen(true);
+  };
+
+  const processSelectedFile = (file) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file (PNG, JPG, WEBP, GIF, SVG)');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image size must be less than 10MB');
+      return;
+    }
+    setSelectedFile(file);
+    setFilePreview(URL.createObjectURL(file));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processSelectedFile(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedFile(null);
+    setFilePreview('');
+    setFormData((prev) => ({ ...prev, image: '' }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processSelectedFile(file);
+    }
   };
 
   const handleNameChange = (e) => {
@@ -92,14 +157,43 @@ const Categories = () => {
       return;
     }
 
-    const payload = {
-      name: formData.name.trim(),
-      slug: formData.slug.trim() ? slugify(formData.slug) : slugify(formData.name),
-      description: formData.description.trim() || undefined,
-      image: formData.image.trim() ? { url: formData.image.trim() } : { url: '' },
-      parent: formData.parent ? formData.parent : null,
-      isActive: formData.isActive,
-    };
+    let payload;
+    if (imageMode === 'upload' && selectedFile) {
+      // Admin uploaded a file -> Send FormData. No URL needed!
+      payload = new FormData();
+      payload.append('name', formData.name.trim());
+      payload.append('slug', formData.slug.trim() ? slugify(formData.slug) : slugify(formData.name));
+      if (formData.description.trim()) {
+        payload.append('description', formData.description.trim());
+      }
+      if (formData.parent) {
+        payload.append('parent', formData.parent);
+      }
+      payload.append('isActive', formData.isActive);
+      payload.append('image', selectedFile);
+    } else {
+      // JSON payload
+      payload = {
+        name: formData.name.trim(),
+        slug: formData.slug.trim() ? slugify(formData.slug) : slugify(formData.name),
+        description: formData.description.trim() || undefined,
+        parent: formData.parent ? formData.parent : null,
+        isActive: formData.isActive,
+      };
+
+      if (imageMode === 'upload') {
+        if (filePreview && !selectedFile) {
+          // Keep existing image during edit
+          payload.image = formData.image?.trim() ? { url: formData.image.trim() } : undefined;
+        } else if (!filePreview) {
+          // Cleared image
+          payload.image = { url: '', publicId: '' };
+        }
+      } else {
+        // Image URL mode
+        payload.image = formData.image?.trim() ? { url: formData.image.trim() } : { url: '' };
+      }
+    }
 
     setActionLoading(true);
     try {
@@ -107,10 +201,10 @@ const Categories = () => {
         await dispatch(
           updateCategory({ categoryId: selectedCategory._id, categoryData: payload })
         ).unwrap();
-        toast.success(`Category "${payload.name}" updated successfully!`);
+        toast.success(`Category "${formData.name.trim()}" updated successfully!`);
       } else {
         await dispatch(createCategory(payload)).unwrap();
-        toast.success(`Category "${payload.name}" created successfully!`);
+        toast.success(`Category "${formData.name.trim()}" created successfully!`);
       }
       setModalOpen(false);
       dispatch(fetchCategories());
@@ -339,26 +433,163 @@ const Categories = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Category Image URL
-            </label>
+          {/* Category Image Selector (Upload File or URL) */}
+          <div className="space-y-2.5 p-3.5 bg-gray-50/80 rounded-xl border border-gray-200">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                Category Image
+              </label>
+              <div className="flex bg-gray-200/70 p-0.5 rounded-lg text-[11px] font-medium">
+                <button
+                  type="button"
+                  onClick={() => setImageMode('upload')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition cursor-pointer ${
+                    imageMode === 'upload'
+                      ? 'bg-white text-indigo-600 font-semibold shadow-xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <UploadCloud className="w-3 h-3" />
+                  Upload Image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageMode('url')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition cursor-pointer ${
+                    imageMode === 'url'
+                      ? 'bg-white text-indigo-600 font-semibold shadow-xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <LinkIcon className="w-3 h-3" />
+                  Image URL
+                </button>
+              </div>
+            </div>
+
+            {/* Hidden file input */}
             <input
-              type="text"
-              placeholder="https://example.com/category-image.png"
-              value={formData.image}
-              onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+              onChange={handleFileChange}
+              className="hidden"
             />
-            {formData.image?.trim() && (
-              <div className="mt-2 flex items-center gap-2.5 p-2 bg-gray-50 rounded-lg border border-gray-200">
-                <img
-                  src={formData.image.trim()}
-                  alt="Category Preview"
-                  className="w-10 h-10 object-contain rounded bg-white border border-gray-200 p-0.5"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+
+            {imageMode === 'upload' ? (
+              <div>
+                {filePreview ? (
+                  /* Preview Card when file/image is present */
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-14 h-14 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden p-0.5">
+                        <img
+                          src={filePreview}
+                          alt="Category Preview"
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=100';
+                          }}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        {selectedFile ? (
+                          <>
+                            <p className="text-xs font-semibold text-gray-900 truncate">
+                              {selectedFile.name}
+                            </p>
+                            <p className="text-[11px] text-gray-500">
+                              {(selectedFile.size / 1024).toFixed(1)} KB • Image selected
+                            </p>
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium mt-1">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> No URL needed
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs font-semibold text-gray-900">
+                              Current Category Image
+                            </p>
+                            <p className="text-[11px] text-gray-500">
+                              Stored category image
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium px-2.5 py-1.5 rounded-lg border border-indigo-200 transition cursor-pointer"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-lg border border-red-200 transition cursor-pointer"
+                        title="Remove image"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Dropzone when no image is selected */
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5 ${
+                      isDragging
+                        ? 'border-indigo-500 bg-indigo-50/50'
+                        : 'border-gray-300 hover:border-indigo-400 bg-white hover:bg-gray-50/60'
+                    }`}
+                  >
+                    <div className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                      <UploadCloud className="w-5 h-5" />
+                    </div>
+                    <div className="text-xs font-semibold text-gray-800">
+                      Click to browse or drag & drop category image
+                    </div>
+                    <p className="text-[11px] text-gray-500">
+                      PNG, JPG, WEBP, GIF, SVG up to 10MB • <strong className="text-indigo-600">No URL needed</strong>
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Image URL Mode */
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="https://example.com/category-image.png"
+                  value={formData.image}
+                  onChange={(e) => {
+                    setFormData({ ...formData, image: e.target.value });
+                    setFilePreview(e.target.value);
+                  }}
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
-                <span className="text-[11px] text-gray-500">Live preview of category image</span>
+                {formData.image?.trim() && (
+                  <div className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-200">
+                    <img
+                      src={formData.image.trim()}
+                      alt="Category Preview"
+                      className="w-10 h-10 object-contain rounded bg-gray-50 border border-gray-200 p-0.5"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    <span className="text-[11px] text-gray-500">Live preview from entered URL</span>
+                  </div>
+                )}
+                <p className="text-[11px] text-gray-400">
+                  Direct link to an externally hosted image.
+                </p>
               </div>
             )}
           </div>

@@ -42,6 +42,52 @@ export const updateSellerProfile = createAsyncThunk(
   }
 );
 
+export const uploadSellerLogo = createAsyncThunk(
+  'seller/uploadLogo',
+  async (file, { rejectWithValue }) => {
+    try {
+      const formData = new FormData();
+      formData.append('logo', file);
+      const response = await axiosInstance.post('/sellers/upload/logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Logo upload failed');
+    }
+  }
+);
+
+export const uploadSellerBanner = createAsyncThunk(
+  'seller/uploadBanner',
+  async (file, { rejectWithValue }) => {
+    try {
+      const formData = new FormData();
+      formData.append('banner', file);
+      const response = await axiosInstance.post('/sellers/upload/banner', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Banner upload failed');
+    }
+  }
+);
+
+export const requestSellerVerification = createAsyncThunk(
+  'seller/requestVerification',
+  async (data, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post('/sellers/request-verification', data || {});
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Verification request failed'
+      );
+    }
+  }
+);
+
 // ----- Dashboard & Earnings -----
 export const fetchDashboardStats = createAsyncThunk(
   'seller/fetchDashboard',
@@ -332,6 +378,59 @@ const sellerSlice = createSlice({
         state.error = null;
       })
       .addCase(updateSellerProfile.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.error = action.payload;
+      })
+
+      // ----- Upload Logo -----
+      .addCase(uploadSellerLogo.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
+      .addCase(uploadSellerLogo.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        if (action.payload?.seller) {
+          state.profile = action.payload.seller;
+        } else if (state.profile && action.payload?.logo) {
+          state.profile.logo = action.payload.logo;
+        }
+        state.error = null;
+      })
+      .addCase(uploadSellerLogo.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.error = action.payload;
+      })
+
+      // ----- Upload Banner -----
+      .addCase(uploadSellerBanner.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
+      .addCase(uploadSellerBanner.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        if (action.payload?.seller) {
+          state.profile = action.payload.seller;
+        } else if (state.profile && action.payload?.banner) {
+          state.profile.banner = action.payload.banner;
+        }
+        state.error = null;
+      })
+      .addCase(uploadSellerBanner.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.error = action.payload;
+      })
+
+      // ----- Request Verification -----
+      .addCase(requestSellerVerification.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
+      .addCase(requestSellerVerification.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        state.profile = action.payload;
+        state.error = null;
+      })
+      .addCase(requestSellerVerification.rejected, (state, action) => {
         state.actionLoading = false;
         state.error = action.payload;
       })

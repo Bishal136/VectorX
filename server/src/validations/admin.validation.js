@@ -20,7 +20,7 @@ const createCategory = Joi.object({
   name: Joi.string().trim().required().max(100),
   slug: Joi.string().trim().lowercase().max(100).optional().allow(''), // optional, auto-generated if missing
   description: Joi.string().trim().optional().allow('', null),
-  parent: objectId.optional().allow(null, ''),
+  parent: objectId.optional().allow(null, '', 'null'),
   image: Joi.alternatives().try(
     Joi.object({
       url: Joi.string().uri().allow('', null).optional(),
@@ -29,20 +29,24 @@ const createCategory = Joi.object({
     Joi.string().uri().allow('', null),
     Joi.string().allow('', null)
   ).optional(),
-  seo: Joi.object({
-    title: Joi.string().max(60).optional(),
-    description: Joi.string().max(160).optional(),
-    keywords: Joi.array().items(Joi.string()).optional(),
-  }).optional(),
+  imageUrl: Joi.string().uri().allow('', null).optional(),
+  seo: Joi.alternatives().try(
+    Joi.object({
+      title: Joi.string().max(60).optional(),
+      description: Joi.string().max(160).optional(),
+      keywords: Joi.array().items(Joi.string()).optional(),
+    }),
+    Joi.string().allow('', null)
+  ).optional(),
   sortOrder: Joi.number().integer().min(0).optional(),
-  isActive: Joi.boolean().optional(),
+  isActive: Joi.alternatives().try(Joi.boolean(), Joi.string().valid('true', 'false')).optional(),
 });
 
 const updateCategory = Joi.object({
   name: Joi.string().trim().max(100).optional(),
   slug: Joi.string().trim().lowercase().max(100).optional().allow(''),
   description: Joi.string().trim().optional().allow('', null),
-  parent: objectId.optional().allow(null, ''),
+  parent: objectId.optional().allow(null, '', 'null'),
   image: Joi.alternatives().try(
     Joi.object({
       url: Joi.string().uri().allow('', null).optional(),
@@ -51,13 +55,17 @@ const updateCategory = Joi.object({
     Joi.string().uri().allow('', null),
     Joi.string().allow('', null)
   ).optional(),
-  seo: Joi.object({
-    title: Joi.string().max(60).optional(),
-    description: Joi.string().max(160).optional(),
-    keywords: Joi.array().items(Joi.string()).optional(),
-  }).optional(),
+  imageUrl: Joi.string().uri().allow('', null).optional(),
+  seo: Joi.alternatives().try(
+    Joi.object({
+      title: Joi.string().max(60).optional(),
+      description: Joi.string().max(160).optional(),
+      keywords: Joi.array().items(Joi.string()).optional(),
+    }),
+    Joi.string().allow('', null)
+  ).optional(),
   sortOrder: Joi.number().integer().min(0).optional(),
-  isActive: Joi.boolean().optional(),
+  isActive: Joi.alternatives().try(Joi.boolean(), Joi.string().valid('true', 'false')).optional(),
 });
 
 const updateOrderStatus = Joi.object({

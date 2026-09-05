@@ -14,6 +14,9 @@ const {
   issueOrderRefund,
   getSellerProfile,
   updateSellerProfile,
+  uploadSellerLogo,
+  uploadSellerBanner,
+  requestVerification,
   getSellerEarnings,
   uploadProductImage,
   uploadProductVideo,
@@ -143,11 +146,32 @@ const issueRefundSchema = Joi.object({
 });
 
 const updateSellerProfileSchema = Joi.object({
-  shopName: Joi.string().min(3).max(100).optional(),
+  shopName: Joi.string().min(2).max(100).optional(),
+  name: Joi.string().min(2).max(100).optional().allow(''),
+  ownerName: Joi.string().min(2).max(100).optional().allow(''),
+  headline: Joi.string().optional().allow(''),
+  bio: Joi.string().optional().allow(''),
+  skills: Joi.array().items(Joi.string()).optional(),
+  socialLinks: Joi.object({
+    linkedin: Joi.string().optional().allow(''),
+    website: Joi.string().optional().allow(''),
+    github: Joi.string().optional().allow(''),
+    twitter: Joi.string().optional().allow('')
+  }).optional(),
+  banner: Joi.object({
+    url: Joi.string().optional().allow('', null),
+    publicId: Joi.string().optional().allow('', null),
+    slogan: Joi.string().optional().allow(''),
+    subtitle: Joi.string().optional().allow('')
+  }).optional(),
+  logo: Joi.object({
+    url: Joi.string().optional().allow('', null),
+    publicId: Joi.string().optional().allow('', null)
+  }).optional(),
   shopAddress: Joi.object({
-    line1: Joi.string().optional(),
-    city: Joi.string().optional(),
-    pincode: Joi.string().optional()
+    line1: Joi.string().optional().allow(''),
+    city: Joi.string().optional().allow(''),
+    pincode: Joi.string().optional().allow('')
   }).optional(),
   location: Joi.object({
     type: Joi.string().valid('Point').default('Point'),
@@ -194,6 +218,11 @@ router.use(verifyToken);
 router.post('/register', validate(registerSellerSchema), registerSeller);
 router.get('/profile', checkSellerExists, getSellerProfile);
 router.put('/profile', checkSellerExists, validate(updateSellerProfileSchema), updateSellerProfile);
+
+// Profile media uploads & verification request
+router.post('/upload/logo', checkSellerExists, uploadSingle('logo'), uploadSellerLogo);
+router.post('/upload/banner', checkSellerExists, uploadSingle('banner'), uploadSellerBanner);
+router.post('/request-verification', checkSellerExists, requestVerification);
 
 router.use(isSeller);
 

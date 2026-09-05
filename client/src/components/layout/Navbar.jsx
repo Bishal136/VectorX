@@ -137,7 +137,7 @@ const Navbar = () => {
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 truncate mx-auto">
               {announcement.badge && (
-                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black tracking-wider uppercase shrink-0">
+                <span className="px-2 py-0.5 rounded-full bg-current/20 text-[10px] font-black tracking-wider uppercase shrink-0">
                   {announcement.badge}
                 </span>
               )}
@@ -151,7 +151,7 @@ const Navbar = () => {
             <button
               type="button"
               onClick={() => setAnnouncementDismissed(true)}
-              className="text-white/70 hover:text-white text-xs p-0.5 shrink-0"
+              className="opacity-70 hover:opacity-100 text-xs p-0.5 shrink-0 cursor-pointer transition-opacity"
               aria-label="Dismiss banner"
             >
               ✕

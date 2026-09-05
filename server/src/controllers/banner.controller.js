@@ -1,4 +1,5 @@
 // server/src/controllers/banner.controller.js
+const fs = require('fs');
 const { Banner, BANNER_SLOTS } = require('../models/Banner.model');
 const CMS = require('../models/CMS.model');
 const asyncHandler = require('../utils/asyncHandler');
@@ -163,7 +164,11 @@ const adminCreateBanner = asyncHandler(async (req, res) => {
         publicId: uploadRes.public_id
       };
     } catch (err) {
-      throw new ApiError(500, `Failed to upload image to Cloudinary: ${err.message}`);
+      throw new ApiError(err.statusCode || 500, `Failed to upload image to Cloudinary: ${err.message}`);
+    } finally {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
     }
   } else if (req.body.imageUrl) {
     imageData = {
@@ -268,7 +273,11 @@ const adminUpdateBanner = asyncHandler(async (req, res) => {
         publicId: uploadRes.public_id
       };
     } catch (err) {
-      throw new ApiError(500, `Failed to upload image: ${err.message}`);
+      throw new ApiError(err.statusCode || 500, `Failed to upload image: ${err.message}`);
+    } finally {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
     }
   } else if (req.body.imageUrl && req.body.imageUrl.trim() !== banner.image?.url) {
     banner.image = {

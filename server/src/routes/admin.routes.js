@@ -4,6 +4,7 @@ const router = express.Router();
 const { isAdmin } = require('../middlewares/role.middleware');
 const {verifyToken} = require('../middlewares/auth.middleware');
 const {validate} = require('../middlewares/validate.middleware'); // assuming Joi validation
+const { uploadSingle } = require('../middlewares/upload.middleware');
 const adminController = require('../controllers/admin.controller');
 const { adminSchemas } = require('../validations/admin.validation'); // we'll define schemas
 const Cart = require('../models/Cart.model');
@@ -34,8 +35,8 @@ router.put(
 
 // Category management
 router.get('/categories', adminController.getCategories);
-router.post('/categories', validate(adminSchemas.createCategory), adminController.createCategory);
-router.put('/categories/:id', validate(adminSchemas.updateCategory), adminController.updateCategory);
+router.post('/categories', uploadSingle('image'), validate(adminSchemas.createCategory), adminController.createCategory);
+router.put('/categories/:id', uploadSingle('image'), validate(adminSchemas.updateCategory), adminController.updateCategory);
 router.delete('/categories/:id', adminController.deleteCategory);
 
 // Order management
@@ -59,7 +60,6 @@ router.put('/settings', validate(adminSchemas.updateSettings), adminController.u
 
 // Banners & CMS Management
 const bannerController = require('../controllers/banner.controller');
-const { uploadSingle } = require('../middlewares/upload.middleware');
 const {
   createBannerSchema,
   updateBannerSchema,
