@@ -21,10 +21,14 @@ const createCategory = Joi.object({
   slug: Joi.string().trim().lowercase().max(100).optional().allow(''), // optional, auto-generated if missing
   description: Joi.string().trim().optional().allow('', null),
   parent: objectId.optional().allow(null, ''),
-  image: Joi.object({
-    url: Joi.string().uri().optional(),
-    publicId: Joi.string().optional(),
-  }).optional(),
+  image: Joi.alternatives().try(
+    Joi.object({
+      url: Joi.string().uri().allow('', null).optional(),
+      publicId: Joi.string().allow('', null).optional(),
+    }),
+    Joi.string().uri().allow('', null),
+    Joi.string().allow('', null)
+  ).optional(),
   seo: Joi.object({
     title: Joi.string().max(60).optional(),
     description: Joi.string().max(160).optional(),
@@ -39,10 +43,14 @@ const updateCategory = Joi.object({
   slug: Joi.string().trim().lowercase().max(100).optional().allow(''),
   description: Joi.string().trim().optional().allow('', null),
   parent: objectId.optional().allow(null, ''),
-  image: Joi.object({
-    url: Joi.string().uri().optional(),
-    publicId: Joi.string().optional(),
-  }).optional(),
+  image: Joi.alternatives().try(
+    Joi.object({
+      url: Joi.string().uri().allow('', null).optional(),
+      publicId: Joi.string().allow('', null).optional(),
+    }),
+    Joi.string().uri().allow('', null),
+    Joi.string().allow('', null)
+  ).optional(),
   seo: Joi.object({
     title: Joi.string().max(60).optional(),
     description: Joi.string().max(160).optional(),

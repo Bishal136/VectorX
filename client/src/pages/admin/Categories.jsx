@@ -39,6 +39,7 @@ const Categories = () => {
     name: '',
     slug: '',
     description: '',
+    image: '',
     parent: '',
     isActive: true,
   });
@@ -54,6 +55,7 @@ const Categories = () => {
       name: '',
       slug: '',
       description: '',
+      image: '',
       parent: '',
       isActive: true,
     });
@@ -67,6 +69,7 @@ const Categories = () => {
       name: cat.name || '',
       slug: cat.slug || '',
       description: cat.description || '',
+      image: cat.image?.url || (typeof cat.image === 'string' ? cat.image : '') || '',
       parent: cat.parent?._id || cat.parent || '',
       isActive: cat.isActive !== false,
     });
@@ -93,6 +96,7 @@ const Categories = () => {
       name: formData.name.trim(),
       slug: formData.slug.trim() ? slugify(formData.slug) : slugify(formData.name),
       description: formData.description.trim() || undefined,
+      image: formData.image.trim() ? { url: formData.image.trim() } : { url: '' },
       parent: formData.parent ? formData.parent : null,
       isActive: formData.isActive,
     };
@@ -196,6 +200,7 @@ const Categories = () => {
             <table className="w-full min-w-[620px] text-left border-collapse text-xs sm:text-sm">
               <thead>
                 <tr className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200 text-[11px] sm:text-xs">
+                  <th className="py-3 px-3 sm:px-4 whitespace-nowrap">Image</th>
                   <th className="py-3 px-3 sm:px-4 whitespace-nowrap">Category Name</th>
                   <th className="py-3 px-3 sm:px-4 whitespace-nowrap">Slug</th>
                   <th className="py-3 px-3 sm:px-4 whitespace-nowrap">Parent Level</th>
@@ -207,9 +212,24 @@ const Categories = () => {
                 {filteredCategories.map((cat) => {
                   const parentId = cat.parent?._id || cat.parent;
                   const parentName = parentId ? categoryMap[parentId] || 'Parent' : null;
+                  const catImageUrl = cat.image?.url || (typeof cat.image === 'string' ? cat.image : '');
 
                   return (
                     <tr key={cat._id} className="hover:bg-gray-50/75 transition-colors">
+                      <td className="py-2.5 px-3 sm:px-4 whitespace-nowrap">
+                        {catImageUrl ? (
+                          <img
+                            src={catImageUrl}
+                            alt={cat.name}
+                            className="w-10 h-10 object-contain rounded-lg border border-gray-200 bg-gray-50 p-0.5"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <span className="text-[10px] text-gray-400 font-medium px-2 py-1 rounded bg-gray-100 border border-gray-200 inline-block">
+                            No image
+                          </span>
+                        )}
+                      </td>
                       <td className="py-3 px-3 sm:px-4 whitespace-nowrap">
                         <div>
                           <div className="font-semibold text-gray-900 text-xs sm:text-sm">{cat.name}</div>
@@ -317,6 +337,30 @@ const Categories = () => {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
+              Category Image URL
+            </label>
+            <input
+              type="text"
+              placeholder="https://example.com/category-image.png"
+              value={formData.image}
+              onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+            {formData.image?.trim() && (
+              <div className="mt-2 flex items-center gap-2.5 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                <img
+                  src={formData.image.trim()}
+                  alt="Category Preview"
+                  className="w-10 h-10 object-contain rounded bg-white border border-gray-200 p-0.5"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+                <span className="text-[11px] text-gray-500">Live preview of category image</span>
+              </div>
+            )}
           </div>
 
           <div>

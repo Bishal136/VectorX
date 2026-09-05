@@ -263,12 +263,21 @@ const createCategory = asyncHandler(async (req, res) => {
   // Auto-generate slug from name if not provided
   const finalSlug = slug || name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
+  let categoryImage = {};
+  if (image) {
+    if (typeof image === 'string' && image.trim()) {
+      categoryImage = { url: image.trim(), publicId: '' };
+    } else if (typeof image === 'object' && image.url) {
+      categoryImage = { url: String(image.url).trim(), publicId: image.publicId || '' };
+    }
+  }
+
   const category = await Category.create({
     name,
     slug: finalSlug,
     description,
     parent: parent || null,
-    image: image || {},
+    image: categoryImage,
     seo: seo || {},
     sortOrder: sortOrder || 0,
     isActive: isActive !== undefined ? isActive : true,
@@ -292,6 +301,14 @@ const updateCategory = asyncHandler(async (req, res) => {
   if (updates.name && updates.name !== category.name) {
     const existing = await Category.findOne({ name: { $regex: new RegExp(`^${updates.name}$`, 'i') } });
     if (existing) throw new ApiError(400, 'Category with this name already exists');
+  }
+
+  if (updates.image !== undefined) {
+    if (typeof updates.image === 'string') {
+      updates.image = updates.image.trim() ? { url: updates.image.trim(), publicId: '' } : { url: '', publicId: '' };
+    } else if (typeof updates.image === 'object' && updates.image !== null) {
+      updates.image = { url: updates.image.url ? String(updates.image.url).trim() : '', publicId: updates.image.publicId || '' };
+    }
   }
 
   Object.assign(category, updates);

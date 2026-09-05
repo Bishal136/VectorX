@@ -203,7 +203,7 @@ const getProducts = asyncHandler(async (req, res) => {
     products = await query
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
-      .populate('category', 'name slug')
+      .populate('category', 'name slug image')
       .populate('sellerId', 'shopName isVerified')
       .lean();
 
@@ -291,7 +291,7 @@ const getProductById = asyncHandler(async (req, res) => {
   let product;
   if (isObjectId) {
     product = await Product.findById(id)
-      .populate('category', 'name slug')
+      .populate('category', 'name slug image')
       .populate('sellerId', 'shopName shopAddress isVerified verificationStatus')
       .populate({
         path: 'reviews.userId',
@@ -299,7 +299,7 @@ const getProductById = asyncHandler(async (req, res) => {
       });
   } else {
     product = await Product.findBySlug(id)
-      .populate('category', 'name slug')
+      .populate('category', 'name slug image')
       .populate('sellerId', 'shopName shopAddress isVerified verificationStatus')
       .populate({
         path: 'reviews.userId',
@@ -454,7 +454,7 @@ const getProductsBySeller = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
-    .populate('category', 'name slug')
+    .populate('category', 'name slug image')
     .lean();
 
   const totalCount = await Product.countDocuments(filter);
