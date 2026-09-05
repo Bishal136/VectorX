@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 
-const Input = ({
+const Input = forwardRef(({
   id,
   label,
   type = 'text',
@@ -12,7 +12,7 @@ const Input = ({
   required = false,
   className = '',
   ...props
-}) => {
+}, ref) => {
   const baseClasses =
     'w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed';
 
@@ -27,6 +27,7 @@ const Input = ({
         </label>
       )}
       <input
+        ref={ref}
         id={id}
         type={type}
         value={value}
@@ -40,6 +41,8 @@ const Input = ({
       {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>
   );
-};
+});
+
+Input.displayName = 'Input';
 
 export default Input;

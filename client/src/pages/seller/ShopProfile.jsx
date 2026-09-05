@@ -30,6 +30,7 @@ const ShopProfile = () => {
   // Hidden file input refs
   const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
+  const headlineInputRef = useRef(null);
 
   // Modals state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -60,15 +61,21 @@ const ShopProfile = () => {
   // New skill input inside edit modal
   const [newSkillInput, setNewSkillInput] = useState('');
 
+  // Skill input in main form
+  const [mainSkillInput, setMainSkillInput] = useState('');
+
   // Verification request form state
   const [verifyForm, setVerifyForm] = useState({
     gstNumber: '',
     panNumber: '',
   });
 
-  // Core shop settings form state (address, bank, GPS)
+  // Core shop settings form state (address, bank, GPS, headline, bio)
   const [formData, setFormData] = useState({
     shopName: '',
+    headline: '',
+    bio: '',
+    skills: [],
     shopAddress: {
       line1: '',
       city: '',
@@ -102,6 +109,9 @@ const ShopProfile = () => {
     if (profile) {
       setFormData({
         shopName: profile.shopName || '',
+        headline: profile.headline || '',
+        bio: profile.bio || '',
+        skills: Array.isArray(profile.skills) ? profile.skills : [],
         shopAddress: {
           line1: profile.shopAddress?.line1 || '',
           city: profile.shopAddress?.city || '',
@@ -283,6 +293,13 @@ const ShopProfile = () => {
     if (!res.error) {
       setSuccessMessage('Profile details updated successfully!');
       setIsEditModalOpen(false);
+      setFormData((prev) => ({
+        ...prev,
+        shopName: payload.shopName,
+        headline: payload.headline,
+        bio: payload.bio,
+        skills: payload.skills,
+      }));
       setTimeout(() => setSuccessMessage(''), 4000);
     }
   };
@@ -291,9 +308,14 @@ const ShopProfile = () => {
   const handleAddSkill = () => {
     const trimmed = newSkillInput.trim();
     if (trimmed && !profileForm.skills.includes(trimmed)) {
+      const updated = [...profileForm.skills, trimmed];
       setProfileForm((prev) => ({
         ...prev,
-        skills: [...prev.skills, trimmed],
+        skills: updated,
+      }));
+      setFormData((prev) => ({
+        ...prev,
+        skills: updated,
       }));
       setNewSkillInput('');
     }
@@ -301,10 +323,32 @@ const ShopProfile = () => {
 
   // Remove a skill tag
   const handleRemoveSkill = (skillToRemove) => {
+    const updated = profileForm.skills.filter((s) => s !== skillToRemove);
     setProfileForm((prev) => ({
       ...prev,
-      skills: prev.skills.filter((s) => s !== skillToRemove),
+      skills: updated,
     }));
+    setFormData((prev) => ({
+      ...prev,
+      skills: updated,
+    }));
+  };
+
+  // Main form skill handlers
+  const handleMainAddSkill = () => {
+    const trimmed = mainSkillInput.trim();
+    if (trimmed && !formData.skills.includes(trimmed)) {
+      const updated = [...formData.skills, trimmed];
+      setFormData((prev) => ({ ...prev, skills: updated }));
+      setProfileForm((prev) => ({ ...prev, skills: updated }));
+      setMainSkillInput('');
+    }
+  };
+
+  const handleMainRemoveSkill = (skillToRemove) => {
+    const updated = formData.skills.filter((s) => s !== skillToRemove);
+    setFormData((prev) => ({ ...prev, skills: updated }));
+    setProfileForm((prev) => ({ ...prev, skills: updated }));
   };
 
   // Submit verification request modal
@@ -321,7 +365,7 @@ const ShopProfile = () => {
     }
   };
 
-  // Submit lower settings form (address, coordinates, tax, bank)
+  // Submit lower settings form (address, coordinates, tax, bank, headline, bio, skills)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSuccessMessage('');
@@ -329,6 +373,9 @@ const ShopProfile = () => {
 
     const payload = {
       shopName: formData.shopName.trim(),
+      headline: formData.headline?.trim() || '',
+      bio: formData.bio?.trim() || '',
+      skills: formData.skills || [],
       shopAddress: {
         line1: formData.shopAddress.line1.trim(),
         city: formData.shopAddress.city.trim(),
@@ -347,15 +394,24 @@ const ShopProfile = () => {
     const res = await dispatch(updateSellerProfile(payload));
     if (!res.error) {
       setSuccessMessage('Shop settings updated successfully!');
+      setProfileForm((prev) => ({
+        ...prev,
+        shopName: payload.shopName,
+        headline: payload.headline,
+        bio: payload.bio,
+        skills: payload.skills,
+      }));
       setTimeout(() => setSuccessMessage(''), 4000);
     }
   };
 
-  // Current display data (no fake defaults)
-  const displayName = profile?.user?.name || profile?.shopName || 'Seller';
-  const displayHeadline = profile?.headline || '';
-  const displayCompanyName = profile?.shopName || 'Company Name';
-  const activeSkills = Array.isArray(profile?.skills) ? profile.skills : [];
+  // Current display data (dynamically reacts to form state, no fake defaults)
+  const displayName = profile?.user?.name || formData.shopName || profile?.shopName || 'Seller';
+  const displayHeadline = formData.headline !== undefined ? formData.headline : (profile?.headline || '');
+  const displayCompanyName = formData.shopName || profile?.shopName || 'Company Name';
+  const activeSkills = Array.isArray(formData.skills) && formData.skills.length > 0
+    ? formData.skills
+    : (Array.isArray(profile?.skills) ? profile.skills : []);
   const avatarSrc = profile?.logo?.url || profile?.user?.avatar?.url || null;
   const bannerSrc = profile?.banner?.url || null;
 
@@ -538,74 +594,54 @@ const ShopProfile = () => {
                   )}
                 </div>
 
-                {/* Headline / Roles (only shows if seller has added one, otherwise prompts) */}
+                {/* Headline / Roles (dynamic, clicking focuses the input on the page) */}
                 {displayHeadline ? (
-                  <p className="text-sm sm:text-base text-slate-600 font-medium leading-snug">
-                    {displayHeadline}
-                  </p>
+                  <div className="flex items-center gap-2 group/headline">
+                    <p className="text-sm sm:text-base text-slate-600 font-medium leading-snug">
+                      {displayHeadline}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('identity');
+                        setTimeout(() => headlineInputRef.current?.focus(), 60);
+                      }}
+                      className="opacity-0 group-hover/headline:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600 p-1 cursor-pointer"
+                      title="Edit headline in Store Identity"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  </div>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setIsEditModalOpen(true)}
+                    onClick={() => {
+                      setActiveTab('identity');
+                      setTimeout(() => headlineInputRef.current?.focus(), 60);
+                    }}
                     className="text-xs sm:text-sm text-slate-400 hover:text-indigo-600 italic cursor-pointer transition-colors block text-left"
                   >
-                    + Add professional headline / roles
+                    + Add professional headline / tagline
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Right Cluster: LinkedIn + Edit Pencil + Company Name */}
-            <div className="flex items-center gap-4 sm:gap-5 self-start md:self-center pt-2 md:pt-4">
-              {/* LinkedIn Icon */}
-              {profile?.socialLinks?.linkedin ? (
-                <a
-                  href={profile.socialLinks.linkedin}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-600 hover:bg-amber-700 text-white flex items-center justify-center font-bold text-lg shadow-sm transition-transform hover:scale-105"
-                  title="Visit LinkedIn Profile"
-                >
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 8.76a1.62 1.62 0 1 0 0-3.24 1.62 1.62 0 0 0 0 3.24m1.39 9.74V9.93H5.07v8.57h2.78z" />
-                  </svg>
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(true)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center font-bold text-lg shadow-sm transition-transform hover:scale-105 cursor-pointer"
-                  title="Add your LinkedIn profile"
-                >
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 8.76a1.62 1.62 0 1 0 0-3.24 1.62 1.62 0 0 0 0 3.24m1.39 9.74V9.93H5.07v8.57h2.78z" />
-                  </svg>
-                </button>
-              )}
-
-              {/* Edit (Pencil) Icon Button */}
+            {/* Right Cluster: Edit Profile Button */}
+            <div className="flex items-center self-start md:self-center pt-2 md:pt-4">
               <button
                 type="button"
                 onClick={() => setIsEditModalOpen(true)}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-gray-300 hover:border-gray-400 hover:bg-gray-100 text-gray-700 flex items-center justify-center transition-all hover:scale-105 cursor-pointer shadow-2xs"
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-gray-300 hover:border-gray-400 hover:bg-gray-100 text-gray-700 font-semibold text-xs sm:text-sm transition-all hover:shadow-xs cursor-pointer"
                 title="Edit profile & headline"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
+                <span>Edit Profile</span>
               </button>
-
-              {/* Company / Shop Name with Red 3-Dot Logo */}
-              <div className="flex items-center gap-2 pl-1">
-                <span className="w-6 h-6 rounded-full bg-rose-600 flex items-center justify-center gap-0.5 text-white shadow-xs shrink-0">
-                  <span className="w-1 h-1 bg-white rounded-full"></span>
-                  <span className="w-1 h-1 bg-white rounded-full"></span>
-                  <span className="w-1 h-1 bg-white rounded-full"></span>
-                </span>
-                <span className="text-base sm:text-lg font-bold text-slate-900 truncate max-w-[160px] sm:max-w-[220px]">
-                  {displayCompanyName}
-                </span>
-              </div>
             </div>
           </div>
 
@@ -628,7 +664,15 @@ const ShopProfile = () => {
             )}
             <button
               type="button"
-              onClick={() => setIsEditModalOpen(true)}
+              onClick={() => {
+                setActiveTab('identity');
+                const el = document.getElementById('seller-skills-section');
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                  setIsEditModalOpen(true);
+                }
+              }}
               className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 underline ml-1 cursor-pointer"
             >
               {activeSkills.length > 0 ? '+ Edit Badges' : '+ Add Badges'}
@@ -761,7 +805,7 @@ const ShopProfile = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Tab 1: Store Identity & Tax */}
         {activeTab === 'identity' && (
-          <div className="bg-white p-6 rounded-xl border border-gray-200/80 shadow-xs space-y-4">
+          <div className="bg-white p-6 rounded-xl border border-gray-200/80 shadow-xs space-y-5">
             <h3 className="font-bold text-gray-900 text-base pb-2 border-b border-gray-100">
               Store & Business Identity
             </h3>
@@ -770,11 +814,98 @@ const ShopProfile = () => {
               label="Shop / Business Name"
               required
               value={formData.shopName}
-              onChange={(e) => setFormData({ ...formData, shopName: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormData((prev) => ({ ...prev, shopName: val }));
+                setProfileForm((prev) => ({ ...prev, shopName: val }));
+              }}
               placeholder="e.g. Apex Electronics Dhaka"
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Input
+                ref={headlineInputRef}
+                id="seller-headline-input"
+                label="Professional Headline / Tagline"
+                value={formData.headline}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData((prev) => ({ ...prev, headline: val }));
+                  setProfileForm((prev) => ({ ...prev, headline: val }));
+                }}
+                placeholder="e.g. Full-Stack Developer | UI/UX Designer | Server Manager | Tech Counsultant"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This dynamic headline appears directly in your profile header and public seller storefront.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Store Bio / About (Optional)
+              </label>
+              <textarea
+                rows={3}
+                value={formData.bio}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData((prev) => ({ ...prev, bio: val }));
+                  setProfileForm((prev) => ({ ...prev, bio: val }));
+                }}
+                placeholder="Brief description of your business, specialty, and services..."
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* Featured Tech & Services Badges */}
+            <div id="seller-skills-section" className="space-y-2 pt-1">
+              <label className="block text-xs font-semibold text-gray-700">
+                Featured Tech & Services Badges (Optional)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={mainSkillInput}
+                  onChange={(e) => setMainSkillInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleMainAddSkill();
+                    }
+                  }}
+                  placeholder="Add a badge (e.g. React, Node.js, Hardware Repair, UI/UX)"
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                />
+                <Button type="button" variant="secondary" size="sm" onClick={handleMainAddSkill}>
+                  + Add Badge
+                </Button>
+              </div>
+
+              {formData.skills && formData.skills.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {formData.skills.map((skill, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200"
+                    >
+                      {skill}
+                      <button
+                        type="button"
+                        onClick={() => handleMainRemoveSkill(skill)}
+                        className="text-slate-400 hover:text-rose-600 font-bold ml-1 cursor-pointer"
+                        title="Remove badge"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">No badges added yet.</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
               <Input
                 label="GST / Business Reg Number (Optional)"
                 value={formData.gstNumber}
